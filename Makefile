@@ -8,8 +8,8 @@ CFLAGS := -lpthread -Wall -Wno-multichar -Wno-unused-function -Wno-unused-variab
 main.o: main.c $(wildcard *.h)
 	gcc -c main.c -o main.o $(CFLAGS)
 
-compile:     main.o setup.o input.o generate.o color.o seed.o progress.o output.o safelib.o pnmlib.o randint.o debug.o
-	gcc main.o setup.o input.o generate.o color.o seed.o progress.o output.o safelib.o pnmlib.o randint.o debug.o -o imagegen $(CFLAGS)
+compile:     main.o setup.o input.o generate_common.o generate_normal.o generate_symmetric.o color.o seed.o progress.o output.o safelib.o pnmlib.o randint.o debug.o
+	gcc main.o setup.o input.o generate_common.o generate_normal.o generate_symmetric.o color.o seed.o progress.o output.o safelib.o pnmlib.o randint.o debug.o -o imagegen $(CFLAGS)
 
 main: compile ;
 
