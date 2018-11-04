@@ -1,4 +1,4 @@
-#include "seed.h"
+#include "seed_common.h"
 
 #include <stdbool.h>
 
@@ -24,11 +24,11 @@ int seed_image_normal(struct pnmdata *data, bool *used_, int seedcount) {
 			debug_1;
 			for (int i = 0; i < floodplanecount; ++i) {
 				int try = (seedcount - realseedcount) / (floodplanecount - i); // never x/0
-				realseedcount += seed_floodplane(&floodplanes[i], data, used_, try);
+				realseedcount += seed_floodplane_normal(&floodplanes[i], data, used_, try);
 			}
 			for (int i = 0; i < floodplanecount; ++i) {
 				int try = (seedcount - realseedcount) / (floodplanecount - i); // never x/0
-				realseedcount += seed_floodplane(&floodplanes[floodplanecount-i-1], data, used_, try);
+				realseedcount += seed_floodplane_normal(&floodplanes[floodplanecount-i-1], data, used_, try);
 			}
 		}
 		return realseedcount;
@@ -80,7 +80,7 @@ int compute_floodplanes_normal(struct pnmdata *data, bool *blocked_) {
 					dimx*dimy,
 					sizeof(struct pixel)
 				); // allocate a buffer that is guaranteed to not overflow ...
-				floodplanes[floodplanecount-1].count = flood_iterative(dimx, dimy, x, y, floodplanes[floodplanecount-1].pixels, (bool*) filled, blocked_);
+				floodplanes[floodplanecount-1].count = flood_iterative_normal(dimx, dimy, x, y, floodplanes[floodplanecount-1].pixels, (bool*) filled, blocked_);
 				floodplanes[floodplanecount-1].pixels = sreallocarray(
 					floodplanes[floodplanecount-1].pixels,
 					floodplanes[floodplanecount-1].count,
@@ -105,11 +105,11 @@ static struct pixel *flood_recursive_normal(int dimx, int dimy, int cx, int cy, 
 		int x = cx + floodoffsets[i].dx;
 		int y = cy + floodoffsets[i].dy;
 		if (x >= 0 && x < dimx && y >= 0 && y < dimy && !filled[y][x] && !blocked[y][x])
-			pixels = flood_recursive(dimx, dimy, x, y, pixels, filled_, blocked_);
+			pixels = flood_recursive_normal(dimx, dimy, x, y, pixels, filled_, blocked_);
 		x = cx - floodoffsets[i].dx;
 		y = cy - floodoffsets[i].dy;
 		if (x >= 0 && x < dimx && y >= 0 && y < dimy && !filled[y][x] && !blocked[y][x])
-			pixels = flood_recursive(dimx, dimy, x, y, pixels, filled_, blocked_);
+			pixels = flood_recursive_normal(dimx, dimy, x, y, pixels, filled_, blocked_);
 	}
 	return pixels;
 }

@@ -32,7 +32,7 @@
 	""
 
 
-void generate_normal_inner(struct pnmdata *data, bool *used_, bool *blocked_);
-void generate_normal_outer(struct pnmdata *data, bool *used_, bool *blocked_);
+void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_);
+void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_);
 
 #endif // GENERATE_NORMAL_H
