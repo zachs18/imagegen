@@ -1,4 +1,4 @@
-#include "seed.h"
+#include "seed_symmetric.h"
 
 #include <stdbool.h>
 

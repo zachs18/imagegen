@@ -1,0 +1,9 @@
+*.o
+
+*.ppm*
+*.pgm*
+*.pbm*
+output_videos/
+*.mp4
+
+!whitelist*
