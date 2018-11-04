@@ -74,7 +74,7 @@ extern int workercount;
 extern bool dividework;
 
 extern bool inner;
-extern bool symmetry;
+extern bool symmetric;
 extern int sym_hcount;
 extern int sym_vcount;
 extern bool sym_h_hflip;
@@ -90,6 +90,11 @@ extern bool sym_v_vflip; // vertical flip from one section to the next verticall
 extern bool sym_sharedrow; // Is the row between sections shared between them
 extern bool sym_sharedcolumn; // Is the column between sections shared between them
 
+extern int sym_maxrow;
+extern int sym_maxcolumn;
+
+extern double maxfitness;
+
 bool generate_option(int c, char *optarg);
 
 void generate_finalize(struct pnmdata *data, bool *blocked_);
@@ -97,6 +102,8 @@ void generate_finalize(struct pnmdata *data, bool *blocked_);
 extern void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_);
 
 extern void (*shuffleoffsets)(void);
+
+extern double inner_fitness(int dimx, int dimy, double *values_, struct pixel pixel, double *color);
 
 
 #endif // GENERATE_h

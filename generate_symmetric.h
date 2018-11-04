@@ -7,8 +7,8 @@
 #include "pnmlib.h"
 #include "debug.h"
 
-extern static void generate_symmetric_inner(struct pnmdata *data, bool *used_, bool *blocked_);
-extern static void generate_symmetric_outer(struct pnmdata *data, bool *used_, bool *blocked_);
+extern void generate_inner_symmetric(struct pnmdata *data, bool *used_, bool *blocked_);
+extern void generate_outer_symmetric(struct pnmdata *data, bool *used_, bool *blocked_);
 
 
 #endif // GENERATE_SYMMETRIC_H

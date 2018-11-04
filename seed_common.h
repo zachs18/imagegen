@@ -9,7 +9,9 @@ struct floodplane {
 	int count;
 };
 
-extern struct floodplane *floodplanes = NULL;
+extern struct floodplane *floodplanes;
 extern int floodplanecount;
+
+extern int (*compute_floodplanes)(struct pnmdata *data, bool *blocked_);
 
 #endif // SEED_COMMON_H

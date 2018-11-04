@@ -22,7 +22,6 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_);
 static void *generate_inner_worker_normal(void *gdata_); // struct generatordata *gdata
 static bool valid_edge_inner_normal(int dimx, int dimy, int x, int y, bool *used_);
 static bool add_edge_inner_normal(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_);
-static double inner_fitness(int dimx, int dimy, double *values_, struct pixel pixel, double *color);
 
 void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_);
 
@@ -53,7 +52,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	pthread_rwlock_t *datalock = smalloc(sizeof(pthread_rwlock_t));;
 	pthread_rwlock_init(datalock, NULL);
 	// locks struct pnmdata *data, int pixels,
-	//       struct edgelist edgelist, 
+	//       struct edgelist edgelist,
 	//       struct offset *offsets and random (for shuffling)
 	pthread_barrier_t *supervisorbarrier = smalloc(sizeof(pthread_barrier_t));
 	pthread_barrier_init(supervisorbarrier, NULL, 2);
@@ -89,12 +88,12 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	pthread_t workers[workercount];
 	for (int i = 0; i < workercount; ++i) {
 		generatordata.id = i;
-		pthread_create(&workers[i], NULL, generate_inner_worker, &generatordata);
+		pthread_create(&workers[i], NULL, generate_inner_worker_normal, &generatordata);
 		pthread_barrier_wait(supervisorbarrier);
 	}
 	pthread_create(&progressor, NULL, progress, &progressdata);
 	pthread_barrier_wait(progressbarrier); // output first (zeroth?) progress image
-	
+
 	pthread_barrier_wait(progressbarrier); // make sure progress rdlocked
 	/*FILE *testfile = fopen("test_.txt", "w");
 	for (int y = 0; y < dimy; ++y) {
@@ -111,7 +110,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		debug(0, "%d\n", pixels);
 		// output progress image
 		pthread_barrier_wait(progressbarrier);
-		
+
 		pthread_barrier_wait(progressbarrier); // make sure progress rdlocked
 		debug(0, "%d\n", pixels);
 		// remove any non-edge edges
@@ -122,7 +121,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 			fprintf(testfile, "\n");
 		}*/
 		if (edgelist.edgecount < 1) {
-			pixels += seed_image(data, used_, 1);
+			pixels += seed_image_normal(data, used_, 1);
 			//pixels += seed_image_naive(data, used_, 1);
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
@@ -136,7 +135,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 			}
 		}
 		for (int i = 0; i < edgelist.edgecount; ++i) {
-			if (!valid_edge_inner(dimx, dimy, edgelist.edges[i].x, edgelist.edges[i].y, used_)) { // dont need to check blocked, shouldn't be there in the first place
+			if (!valid_edge_inner_normal(dimx, dimy, edgelist.edges[i].x, edgelist.edges[i].y, used_)) { // dont need to check blocked, shouldn't be there in the first place
 				edgelist.edgecount--;
 				if (i != edgelist.edgecount) {
 					memcpy(&edgelist.edges[i], &edgelist.edges[edgelist.edgecount], sizeof(*edgelist.edges));
@@ -154,10 +153,10 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	debug_0;
 	pthread_join(progressor, NULL);
 	debug_0;
-	
+
 }
 
-static void *generate_inner_worker(void *gdata_) {
+static void *generate_inner_worker_normal(void *gdata_) {
 	struct generatordata *gdata = (struct generatordata *) gdata_;
 	int id = gdata->id;
 	pthread_barrier_t *supervisorbarrier = gdata->supervisorbarrier;
@@ -185,7 +184,7 @@ static void *generate_inner_worker(void *gdata_) {
 			pthread_barrier_wait(wbarriers[id-1]); // wait for previous thread to generate its color
 		new_color(color);
 		if (!islast)
-			pthread_barrier_wait(wbarriers[id]); // let the next thread go 
+			pthread_barrier_wait(wbarriers[id]); // let the next thread go
 		double bestfitness = maxfitness; // lower if better
 		struct pixel *best = NULL;
 		int range = edgelist->edgecount/workercount;
@@ -215,8 +214,8 @@ static void *generate_inner_worker(void *gdata_) {
 					memcpy(values[y+dy][x+dx], color, depth*sizeof(*color));
 					used[y+dy][x+dx] = true;
 					(*pixels)++;
-					if (valid_edge_inner(dimx, dimy, x+dx, y+dy, (bool*) used))
-						add_edge_inner(dimx, dimy, x+dx, y+dy, edgelist, (bool*) used);
+					if (valid_edge_inner_normal(dimx, dimy, x+dx, y+dy, (bool*) used))
+						add_edge_inner_normal(dimx, dimy, x+dx, y+dy, edgelist, (bool*) used);
 					break;
 				}
 			}
@@ -232,7 +231,7 @@ static void *generate_inner_worker(void *gdata_) {
 	return NULL;
 }
 
-static bool valid_edge_inner(int dimx, int dimy, int x, int y, bool *used_) {
+static bool valid_edge_inner_normal(int dimx, int dimy, int x, int y, bool *used_) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	if (!used[y][x])
 		return false;
@@ -246,7 +245,7 @@ static bool valid_edge_inner(int dimx, int dimy, int x, int y, bool *used_) {
 	return false;
 }
 
-static bool add_edge_inner(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_) {
+static bool add_edge_inner_normal(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	int edgecount = edgelist->edgecount;
 	if (x < 0 || x >= dimx || y < 0 || y >= dimy)
@@ -261,19 +260,15 @@ static bool add_edge_inner(int dimx, int dimy, int x, int y, struct edgelist *ed
 	return true;
 }
 
-static double inner_fitness(int dimx, int dimy, double *values_, struct pixel pixel, double *color) {
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) values_;
-	double ret = 0.;
-	for (int i = 0; i < depth; ++i) {
-		double t = (values[pixel.y][pixel.x][i] - color[i])*65536;
-		ret += t*t;
-	}
-	if (ret < 0.)
-		return DBL_MAX;
-	return ret;
+void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
+	debug(100,"This function is not implemented\n");
+	exit(1);
 }
 
-static bool valid_edge_outer(int dimx, int dimy, int x, int y, bool *used_) {
+
+static bool valid_edge_outer_normal(int dimx, int dimy, int x, int y, bool *used_) {
+	debug(100,"This function is not implemented\n");
+	exit(1);
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	if (used[y][x])
 		return false;

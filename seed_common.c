@@ -1,4 +1,4 @@
-#include "seed.h"
+#include "seed_common.h"
 
 #include <stdbool.h>
 

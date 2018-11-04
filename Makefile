@@ -1,4 +1,4 @@
-default: dbg ;
+default: Debug ;
 
 CFLAGS := -lpthread -Wall -Wno-multichar -Wno-unused-function -Wno-unused-variable -DSDL_PROGRESS -lSDL2
 
@@ -8,15 +8,15 @@ CFLAGS := -lpthread -Wall -Wno-multichar -Wno-unused-function -Wno-unused-variab
 main.o: main.c $(wildcard *.h)
 	gcc -c main.c -o main.o $(CFLAGS)
 
-compile:     main.o setup.o input.o generate_common.o generate_normal.o generate_symmetric.o color.o seed.o progress.o output.o safelib.o pnmlib.o randint.o debug.o
-	gcc main.o setup.o input.o generate_common.o generate_normal.o generate_symmetric.o color.o seed.o progress.o output.o safelib.o pnmlib.o randint.o debug.o -o imagegen $(CFLAGS)
+compile:     main.o setup.o input.o generate_common.o generate_normal.o generate_symmetric.o color.o seed_common.o seed_normal.o seed_symmetric.o progress.o output.o safelib.o pnmlib.o randint.o debug.o
+	gcc main.o setup.o input.o generate_common.o generate_normal.o generate_symmetric.o color.o seed_common.o seed_normal.o seed_symmetric.o progress.o output.o safelib.o pnmlib.o randint.o debug.o -o imagegen $(CFLAGS)
 
 main: compile ;
 
-dbg: main ;
+Debug: main ;
 
-release: CFLAGS += -DNO_DEBUG
-release: main ;
+Release: CFLAGS += -DNO_DEBUG
+Release: main ;
 
 clean:
 	rm -f *.o imagegen
