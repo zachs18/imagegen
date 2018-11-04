@@ -1,14 +1,15 @@
-#ifndef SEED_H
-#define SEED_H
+#ifndef SEED_COMMON_H
+#define SEED_COMMON_H
 
 #include "generate_common.h"
-#include "pnmlib.h"
 #include "debug.h"
 
+struct floodplane {
+	struct pixel *pixels;
+	int count;
+};
+
+extern struct floodplane *floodplanes = NULL;
 extern int floodplanecount;
 
-int compute_floodplanes(struct pnmdata *data, bool *blocked_);
-
-int seed_image(struct pnmdata *data, bool *used_, int seedcount);
-
-#endif // RANDINT_H
+#endif // SEED_COMMON_H

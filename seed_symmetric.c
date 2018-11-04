@@ -10,36 +10,11 @@
 #include "randint.h"
 #include "debug.h"
 
-struct floodplane {
-	struct pixel *pixels;
-	int count;
-};
+static int seed_floodplane_symmetric(struct floodplane *floodplane, struct pnmdata *data, bool *used_, int seedcount);
+static struct pixel *flood_recursive_symmetric(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_); // unused
+static int flood_iterative_symmetric(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_);
 
-static struct floodplane *floodplanes = NULL;
-int floodplanecount = 0;
-
-static int seed_floodplane(struct floodplane *floodplane, struct pnmdata *data, bool *used_, int seedcount);
-static struct pixel *flood_recursive(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_);
-static int flood_iterative(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_);
-
-int seed_image_naive(struct pnmdata *data, bool *used_, int seedcount) { // Unused
-	int dimx = data->dimx, dimy = data->dimy, depth = data->depth;
-	bool (*used)[dimx] = (bool(*)[dimx]) used_;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
-	for (int i = 0; i < seedcount; ++i) {
-		int x = randint(0, dimx);
-		int y = randint(0, dimy);
-		if (used[y][x]) {
-			--i;
-			continue;
-		}
-		used[y][x] = true;
-		new_color(values[y][x]);
-	}
-	return seedcount;
-}
-
-int seed_image(struct pnmdata *data, bool *used_, int seedcount) {
+int seed_image_symmetric(struct pnmdata *data, bool *used_, int seedcount) {
 	if (seedcount > 0) {
 		//if (seedcount < floodplanecount) seedcount = floodplanecount;
 		// so we don't have to deal with re-seeding ever
@@ -61,7 +36,7 @@ int seed_image(struct pnmdata *data, bool *used_, int seedcount) {
 	return 0;
 }
 
-static int seed_floodplane(struct floodplane *floodplane, struct pnmdata *data, bool *used_, int seedcount) {
+static int seed_floodplane_symmetric(struct floodplane *floodplane, struct pnmdata *data, bool *used_, int seedcount) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
@@ -93,7 +68,7 @@ static int seed_floodplane(struct floodplane *floodplane, struct pnmdata *data, 
 	return seedcount;
 }
 
-int compute_floodplanes(struct pnmdata *data, bool *blocked_) {
+int compute_floodplanes_symmetric(struct pnmdata *data, bool *blocked_) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*filled)[dimx] = (bool(*)[dimx]) scalloc(dimy, sizeof(*filled));
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
@@ -118,7 +93,7 @@ int compute_floodplanes(struct pnmdata *data, bool *blocked_) {
 	return floodplanecount;
 }
 
-static struct pixel *flood_recursive(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_) {
+static struct pixel *flood_recursive_symmetric(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_) {
 	// segfaults for images larger than ~300x300
 	bool (*filled)[dimx] = (bool(*)[dimx]) filled_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
@@ -139,7 +114,7 @@ static struct pixel *flood_recursive(int dimx, int dimy, int cx, int cy, struct 
 	return pixels;
 }
 
-static int flood_iterative(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_) {
+static int flood_iterative_symmetric(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_) {
 	bool (*filled)[dimx] = (bool(*)[dimx]) filled_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
 	filled[cy][cx] = true;

@@ -1,14 +1,13 @@
-#ifndef SEED_H
-#define SEED_H
+#ifndef SEED_NORMAL_H
+#define SEED_NORMAL_H
 
-#include "generate_common.h"
+#include "seed_common.h"
+#include "generate_normal.h"
 #include "pnmlib.h"
 #include "debug.h"
 
-extern int floodplanecount;
+int compute_floodplanes_normal(struct pnmdata *data, bool *blocked_);
 
-int compute_floodplanes(struct pnmdata *data, bool *blocked_);
+int seed_image_normal(struct pnmdata *data, bool *used_, int seedcount);
 
-int seed_image(struct pnmdata *data, bool *used_, int seedcount);
-
-#endif // RANDINT_H
+#endif // SEED_NORMAL_H

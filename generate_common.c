@@ -34,10 +34,16 @@ bool inner = true;
 bool symmetry = false;
 int sym_hcount = 1;
 int sym_vcount = 1;
-bool sym_h_hflip = false; // horizontal flip from one section to the next horizontally
-bool sym_h_vflip = false; // vertical flip from one section to the next horizontally
-bool sym_v_hflip = false; // horizontal flip from one section to the next vertically
-bool sym_v_vflip = false; // vertical flip from one section to the next vertically
+bool sym_h_hflip = true; // horizontal flip from one section to the next horizontally (pq)
+bool sym_h_vflip = false; // vertical flip from one section to the next horizontally (pb)
+bool sym_v_hflip = false; // horizontal flip from one section to the next vertically (p/q)
+bool sym_v_vflip = false; // vertical flip from one section to the next vertically (p/b)
+
+bool sym_sharedrow = false; // Is the row between sections shared between them (true for 1 vertical section, otherwise depends on height)
+bool sym_sharedcolumn = false; // Is the column between sections shared between them (true for 1 horizontal section, otherwise depends on width)
+
+int sym_maxrow = 0; // highest row number that is is not already 
+int sym_maxcolumn = 0;
 
 static double maxfitness = DBL_MAX;
 
@@ -81,7 +87,7 @@ static void dontshuffleoffsets(void);
 void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_) = NULL;
 
 bool generate_option(int c, char *optarg) {
-	int ret = 0, count = 0, count2 = 0;
+	int ret = 0, count = 0, count2 = 0, flags_used = 0;
 	switch (c) {
 		case 'e': // seed count
 			ret = sscanf(optarg, "%d%n", &seeds, &count);
@@ -144,21 +150,66 @@ bool generate_option(int c, char *optarg) {
 			break;
 		case 'symm': // symmetry
 			ret = sscanf(optarg, "%d%n", &sym_hcount, &count);
-			if (optarg[count] == 'f') {
-				sym_hflip = true;
+			flags_used = 0;
+			while (optarg[count] != ',') {
+				if (optarg[count] == 'n' && flags_used == 0) {
+					sym_h_hflip = false;
+				}
+				else if (optarg[count] == 'n' && flags_used == 1) {
+					sym_h_vflip = false;
+				}
+				else if (flags_used == 2) {
+					break;
+				}
+				else if (optarg[count] == 'h') {
+					sym_h_hflip = true;
+				}
+				else if (optarg[count] == 'v') {
+					sym_h_vflip = false;
+				else { // This will catch the null byte if it occurs, so no segfault
+					fprintf(stderr, "Invalid symmetry specifier: '%s'.\n", optarg);
+					exit(EXIT_FAILURE);
+				}
 				count++;
+				flags_used++;
 			}
+			if (flags_used == 0 and sym_hcount == 1) {
+				sym_h_hflip = true; // so the edges dont wrap by default
+			}
+			
 			if (ret != 1 || sym_hcount < 1 || optarg[count] != ',') {
 				fprintf(stderr, "Invalid symmetry specifier: '%s'.\n", optarg);
 				exit(EXIT_FAILURE);
 			}
 			count++; // the comma in the specifier
 			ret = sscanf(optarg+count, "%d%n", &sym_vcount, &count2);
-			if (optarg[count+count2] == 'f') {
-				sym_vflip = true;
-				count++;
+			flags_used = 0;
+			while (optarg[count+count2] != '\0') {
+				if (optarg[count+count2] == 'n' && flags_used == 0) {
+					sym_v_hflip = false;
+				}
+				else if (optarg[count+count2] == 'n' && flags_used == 1) {
+					sym_v_vflip = false;
+				}
+				else if (flags_used == 2) {
+					break;
+				}
+				else if (optarg[count+count2] == 'h') {
+					sym_v_hflip = true;
+				}
+				else if (optarg[count+count2] == 'v') {
+					sym_v_vflip = false;
+				else {
+					fprintf(stderr, "Invalid symmetry specifier: '%s'.\n", optarg);
+					exit(EXIT_FAILURE);
+				}
+				count2++;
+				flags_used++;
 			}
-			if (ret != 1 || sym_hcount < 1 || optarg[count+count2] != 0) {
+			if (flags_used == 0 and sym_vcount == 1) {
+				sym_v_vflip = true; // so the edges dont wrap by default
+			}
+			if (ret != 1 || sym_vcount < 1 || optarg[count+count2] != 0) {
 				fprintf(stderr, "Invalid symmetry specifier: '%s'.\n", optarg);
 				exit(EXIT_FAILURE);
 			}
