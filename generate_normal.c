@@ -1,4 +1,4 @@
-#include "generate_symmetric.h"
+#include "generate_common.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,30 +11,31 @@
 #include "seed.h"
 #include "setup.h"
 #include "color.h"
-#include "generate_common.h"
 #include "progress.h"
 #include "safelib.h"
 #include "pnmlib.h"
 #include "randint.h"
 #include "debug.h"
 
-struct edgelist {
-	struct pixel *edges;
-	int edgecount;
-};
+struct offset *offsets = NULL;
+struct offset *floodoffsets = NULL; // every offset or its inverse once (i.e. not both)
 
-struct generatordata {
-	pthread_rwlock_t *datalock;
-	pthread_barrier_t *supervisorbarrier; // supervisor barrier, main thread and one worker
-	pthread_barrier_t *groupbarrier; // group barrier, main thread and all workers
-	pthread_barrier_t *const *wbarriers; // worker barriers, two workers each
-	struct pnmdata *data;
-	bool *used_;
-	//bool *blocked_; // the workers don't need this, only the manager
-	struct edgelist *edgelist;
-	volatile int *pixels;
-	int id; // [0, workercount)
-};
+int offsetcount = 0;
+int floodoffsetcount = 0;
+
+int seeds = -1;
+
+int workercount = 2;
+bool dividework = false;
+
+bool symmetry = false;
+int sym_hcount = 1;
+int sym_vcount = 1;
+bool sym_hflip = false;
+bool sym_vflip = false;
+
+static double maxfitness = DBL_MAX;
+
 
 /*struct progressdata {
 	pthread_rwlock_t *datalock;
@@ -139,6 +140,9 @@ bool generate_option(int c, char *optarg) {
 				fprintf(stderr, "Invalid worker count: '%s'.\n", optarg);
 				exit(EXIT_FAILURE);
 			}
+			break;
+		case 'divw': // divide work
+			dividework = true;
 			break;
 		case 'symm': // symmetry
 			ret = sscanf(optarg, "%d%n", &sym_hcount, &count);
@@ -494,8 +498,10 @@ static void *generate_inner_worker(void *gdata_) {
 			pthread_barrier_wait(wbarriers[id]); // let the next thread go 
 		double bestfitness = maxfitness; // lower if better
 		struct pixel *best = NULL;
-		
-		for (int i = 0; i < edgelist->edgecount; ++i) {
+		int range = edgelist->edgecount/workercount;
+		int start = dividework ? range * id : 0;
+		int end = dividework ? (islast ? edgelist->edgecount : range*(id+1)) : edgelist->edgecount;
+		for (int i = start; i < end; ++i) {
 			double fitness = inner_fitness(dimx, dimy, (double*) values, edgelist->edges[i], color);
 			if (fitness < bestfitness) {
 				bestfitness = fitness;

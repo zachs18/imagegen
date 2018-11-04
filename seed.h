@@ -1,7 +1,7 @@
 #ifndef SEED_H
 #define SEED_H
 
-#include "generate.h"
+#include "generate_common.h"
 #include "pnmlib.h"
 #include "debug.h"
 

@@ -15,7 +15,7 @@
 
 
 #include "safelib.h"
-#include "generate.h" // workercount
+#include "generate_common.h" // workercount
 #include "pnmlib.h"
 #include "debug.h"
 

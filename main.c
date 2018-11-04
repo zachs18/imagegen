@@ -7,7 +7,7 @@
 
 #include "setup.h"
 #include "input.h"
-#include "generate.h"
+#include "generate_common.h"
 #include "seed.h"
 #include "color.h"
 #include "progress.h"

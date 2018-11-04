@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "generate.h"
+#include "generate_common.h"
 #include "debug.h"
 
 

@@ -9,7 +9,7 @@
 
 #include "safelib.h"
 #include "pnmlib.h"
-#include "generate.h" // workercount
+#include "generate_common.h" // workercount
 #include "progress.h" // progress_finalize
 #include "safelib.h"
 #include "debug.h"

@@ -1,4 +1,4 @@
-#include "generate.h"
+#include "generate_common.h"
 
 #include <stdio.h>
 #include <stdlib.h>

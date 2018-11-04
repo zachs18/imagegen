@@ -3,7 +3,7 @@
 #include <stdbool.h>
 
 #include "setup.h"
-#include "generate.h"
+#include "generate_common.h"
 #include "color.h"
 #include "safelib.h"
 #include "pnmlib.h"
