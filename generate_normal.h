@@ -1,8 +1,9 @@
-#ifndef GENERATE_H
-#define GENERATE_H
+#ifndef GENERATE_NORMAL_H
+#define GENERATE_NORMAL_H
 
 #include <stdbool.h>
 
+#include "generate_common.h"
 #include "pnmlib.h"
 #include "debug.h"
 
@@ -30,56 +31,8 @@
 	"	--symmetry <int>[f],<int>[f]  Symmetry specifier\n" \
 	""
 
-struct pixel {
-	int x, y;
-};
 
-struct offset {
-	int dx, dy;
-};
+void generate_normal_inner(struct pnmdata *data, bool *used_, bool *blocked_);
+void generate_normal_outer(struct pnmdata *data, bool *used_, bool *blocked_);
 
-struct edgelist {
-	struct pixel *edges;
-	int edgecount;
-};
-
-struct generatordata {
-	pthread_rwlock_t *datalock;
-	pthread_barrier_t *supervisorbarrier; // supervisor barrier, main thread and one worker
-	pthread_barrier_t *groupbarrier; // group barrier, main thread and all workers
-	pthread_barrier_t *const *wbarriers; // worker barriers, two workers each
-	struct pnmdata *data;
-	bool *used_;
-	//bool *blocked_; // the workers don't need this, only the manager
-	struct edgelist *edgelist;
-	volatile int *pixels;
-	int id; // [0, workercount)
-};
-
-extern struct offset *offsets;
-extern struct offset *floodoffsets; // every offset and its inverse once each
-
-extern int offsetcount;
-extern int floodoffsetcount;
-
-extern int seeds;
-
-extern int workercount;
-extern bool dividework;
-
-extern bool symmetry;
-extern int sym_hcount;
-extern int sym_vcount;
-extern bool sym_hflip;
-extern bool sym_vflip;
-
-bool generate_option(int c, char *optarg);
-
-void generate_finalize(struct pnmdata *data, bool *blocked_);
-
-extern void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_);
-
-extern void (*shuffleoffsets)(void);
-
-
-#endif // GENERATE_h
+#endif // GENERATE_NORMAL_H

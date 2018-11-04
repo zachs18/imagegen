@@ -8,6 +8,8 @@
 #include <string.h> // memcpy
 #include <unistd.h> // sleep
 
+#include "generate_normal.h"
+#include "generate_symmetric.h"
 #include "seed.h"
 #include "setup.h"
 #include "color.h"
@@ -28,11 +30,14 @@ int seeds = -1;
 int workercount = 2;
 bool dividework = false;
 
+bool inner = true;
 bool symmetry = false;
 int sym_hcount = 1;
 int sym_vcount = 1;
-bool sym_hflip = false;
-bool sym_vflip = false;
+bool sym_h_hflip = false; // horizontal flip from one section to the next horizontally
+bool sym_h_vflip = false; // vertical flip from one section to the next horizontally
+bool sym_v_hflip = false; // horizontal flip from one section to the next vertically
+bool sym_v_vflip = false; // vertical flip from one section to the next vertically
 
 static double maxfitness = DBL_MAX;
 
@@ -74,13 +79,6 @@ static void doshuffleoffsets(void);
 static void dontshuffleoffsets(void);
 
 void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_) = NULL;
-static void generate_inner(struct pnmdata *data, bool *used_, bool *blocked_);
-static void *generate_inner_worker(void *gdata_); // struct generatordata *gdata
-static bool valid_edge_inner(int dimx, int dimy, int x, int y, bool *used_);
-static bool add_edge_inner(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_);
-static double inner_fitness(int dimx, int dimy, double *values_, struct pixel pixel, double *color);
-
-static void generate_outer(struct pnmdata *data, bool *used_);
 
 bool generate_option(int c, char *optarg) {
 	int ret = 0, count = 0, count2 = 0;
@@ -222,8 +220,22 @@ void generate_finalize(struct pnmdata *data, bool *blocked_) {
 	if (seeds < 0)
 		seeds = floodplanecount;
 	//fprintf(stderr, "\t%d floodplanes %d seeds\n", floodplanecount, seeds);
-	if (generate == NULL)
-		generate = generate_inner;
+	if (inner) {
+		if (symmetric) {
+			generate = generate_inner_symmetric;
+		}
+		else {
+			generate = generate_inner_normal;
+		}
+	}
+	else {
+		if (symmetric) {
+			generate = generate_outer_symmetric;
+		}
+		else {
+			generate = generate_outer_normal;
+		}
+	}
 }
 
 static void allocoffsets(int count) {

@@ -1,5 +1,5 @@
-#ifndef GENERATE_H
-#define GENERATE_H
+#ifndef GENERATE_COMMON_H
+#define GENERATE_COMMON_H
 
 #include <stdbool.h>
 
@@ -67,11 +67,14 @@ extern int seeds;
 extern int workercount;
 extern bool dividework;
 
+extern bool inner;
 extern bool symmetry;
 extern int sym_hcount;
 extern int sym_vcount;
-extern bool sym_hflip;
-extern bool sym_vflip;
+extern bool sym_h_hflip;
+extern bool sym_h_vflip;
+extern bool sym_v_hflip;
+extern bool sym_v_vflip;
 
 bool generate_option(int c, char *optarg);
 
