@@ -5,5 +5,8 @@
 *.pbm*
 output_videos/
 *.mp4
+latex/
+html/
+nqqb_session.xml
 
 !whitelist*
