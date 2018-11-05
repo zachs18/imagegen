@@ -32,18 +32,6 @@ bool dividework = false;
 
 bool inner = true;
 bool symmetric = false;
-int sym_hcount = 1;
-int sym_vcount = 1;
-bool sym_h_hflip = true; // horizontal flip from one section to the next horizontally (pq)
-bool sym_h_vflip = false; // vertical flip from one section to the next horizontally (pb)
-bool sym_v_hflip = false; // horizontal flip from one section to the next vertically (p/q)
-bool sym_v_vflip = false; // vertical flip from one section to the next vertically (p/b)
-
-bool sym_sharedrow = false; // Is the row between sections shared between them (true for 1 vertical section, otherwise depends on height)
-bool sym_sharedcolumn = false; // Is the column between sections shared between them (true for 1 horizontal section, otherwise depends on width)
-
-int sym_maxrow = 0; // highest row number that is is not already
-int sym_maxcolumn = 0;
 
 double maxfitness = DBL_MAX;
 
@@ -246,21 +234,36 @@ void generate_finalize(struct pnmdata *data, bool *blocked_) {
 			floodoffsets[floodoffsetcount-1].dy = offsets[i].dy;
 		}
 	}
-	if (
-		data->dimx % sym_hcount == 0 || // Exact fit
-		data->dimx % sym_hcount == 1    // Overlapping by 1 pixel
-	) {
-		// pass
+	if (data->dimx % sym_hcount == 0) { // Exact fit
+		sym_sharedcolumn = false;
+		sym_maxx = data->dimx / sym_hcount;
+	}
+	else if (data->dimx % sym_hcount == 1) { // Overlapping by 1 pixel
+		sym_sharedcolumn = true;
+		if (sym_h_hflip) { 
+			sym_maxx = data->dimx / sym_hcount + 1;
+		}
+		else {
+			sym_maxx = data->dimx / sym_hcount;
+		}
 	}
 	else {
 		fprintf(stderr, "Invalid width %d for symmetry count %d\n", data->dimx, sym_hcount);
 		exit(EXIT_FAILURE);
 	}
-	if (
-		data->dimy % sym_vcount == 0 || // Exact fit
-		data->dimy % sym_vcount == 1    // Overlapping by 1 pixel
-	) {
-		// pass
+	
+	if (data->dimy % sym_vcount == 0) { // Exact fit
+		sym_sharedrow = false;
+		sym_maxy = data->dimy / sym_vcount;
+	}
+	else if (data->dimy % sym_vcount == 1) { // Overlapping by 1 pixel
+		sym_sharedrow = true;
+		if (sym_v_vflip) { 
+			sym_maxy = data->dimy / sym_vcount + 1;
+		}
+		else {
+			sym_maxy = data->dimy / sym_vcount;
+		}
 	}
 	else {
 		fprintf(stderr, "Invalid height %d for symmetry count %d\n", data->dimy, sym_vcount);
