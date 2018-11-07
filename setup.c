@@ -24,6 +24,8 @@ static unsigned int seed;
 static bool seed_given = false;
 static char **comments;
 
+bool interactive = false;
+
 bool setup_option(int c, char *optarg) {
 	int ret, count;
 	switch (c) {
@@ -76,6 +78,9 @@ bool setup_option(int c, char *optarg) {
 			}
 			seed_given = true;
 			break;
+		case 'intr':
+			interactive = true;
+			break;
 		default:
 			return false;
 	}
@@ -117,4 +122,8 @@ void setup_finalize(struct pnmdata *data, bool **used, bool **blocked, const cha
 	sprintf(data->comments[1], "%s%u", WORKERS_STR, workercount); // add seed as PNM comment
 	
 	progress_finalize(progname, dimx, dimy, seed, depth);
+}
+
+void setup_interactive(struct pnmdata *data, bool *used_, bool *blocked_) {
+	exit(EXIT_FAILURE);
 }

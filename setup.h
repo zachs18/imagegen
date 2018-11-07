@@ -18,6 +18,7 @@
 	{"color", no_argument, NULL, 'c'}, \
 	{"depth", required_argument, NULL, 'dept'}, \
 	{"seed", required_argument, NULL, 'S'}, \
+	{"interactive", no_argument, NULL, 'intr'},
 
 #define SETUP_HELP \
 	"Setup Options\n" \
@@ -32,10 +33,13 @@
 	""
 
 extern int depth;
+extern bool interactive;
 
 bool setup_option(int c, char *optarg);
 
 void setup_finalize(struct pnmdata *data, bool **used, bool **blocked, const char *progname);
+
+void setup_interactive(struct pnmdata *data, bool *used_, bool *blocked_);
 
 
 #endif // SETUP_H

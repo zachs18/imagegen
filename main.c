@@ -79,6 +79,11 @@ int main(int argc, char **argv) {
 	input_finalize(data, used_, blocked_);
 	
 	debug_1;
+	if (interactive) {
+		setup_interactive(data, used_,  blocked_);
+	}
+	
+	debug_1;
 	generate_finalize(data, blocked_);
 	
 	debug_1;
