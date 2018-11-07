@@ -1,6 +1,6 @@
 #include "seed_common.h"
 
-#include <stdbool.h>
+#include <stdlib.h>
 
 #include "setup.h"
 #include "generate_common.h"
