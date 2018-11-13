@@ -18,8 +18,19 @@
 # define SDL_LONGOPTS
 #endif // def SDL_PROGRESS
 
+#ifdef FRAMEBUFFER_PROGRESS
+# define FRAMEBUFFER_SHORTOPTS
+# define FRAMEBUFFER_LONGOPTS \
+	{"framebuffer", no_argument, NULL, 'fram'}, \
+	{"wait", required_argument, NULL, 'wait'}, \
+	{"pos", required_argument, NULL, 'pos'},
+#else // ndef FRAMEBUFFER_PROGRESS
+# define FRAMEBUFFER_SHORTOPTS
+# define FRAMEBUFFER_LONGOPTS
+#endif // def FRAMEBUFFER_PROGRESS
 
-#define PROGRESS_SHORTOPTS "P::TM:I:" SDL_SHORTOPTS
+
+#define PROGRESS_SHORTOPTS "P::TM:I:" SDL_SHORTOPTS FRAMEBUFFER_SHORTOPTS
 
 #define PROGRESS_LONGOPTS \
 	{"progressfile", optional_argument, NULL, 'P'}, \
@@ -27,8 +38,8 @@
 	{"noprogress", no_argument, NULL, 'nopr'}, \
 	{"progresscount", required_argument, NULL, 'M'}, \
 	{"progressinterval", required_argument, NULL, 'I'}, \
-	SDL_LONGOPTS
-
+	SDL_LONGOPTS \
+	FRAMEBUFFER_LONGOPTS
 
 
 #define PROGRESS_HELP \

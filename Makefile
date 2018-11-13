@@ -1,6 +1,6 @@
 default: Debug ;
 
-CFLAGS := -lpthread -Wall -Wno-multichar -Wno-unused-function -Wno-unused-variable -DSDL_PROGRESS -lSDL2
+CFLAGS := -lpthread -Wall -Wno-multichar -Wno-unused-function -Wno-unused-variable -DSDL_PROGRESS -lSDL2 -DFRAMEBUFFER_PROGRESS
 
 %.o: %.c $(wildcard *.h)
 	gcc -c $< -o $@ $(CFLAGS)

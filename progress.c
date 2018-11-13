@@ -13,6 +13,13 @@
 #include <sys/time.h>
 #endif // def SDL_PROGRESS
 
+#ifdef FRAMEBUFFER_PROGRESS
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <linux/fb.h>
+#include <fcntl.h>
+#endif // def FRAMEBUFFER_PROGRESS
 
 #include "safelib.h"
 #include "generate_common.h" // workercount
@@ -30,11 +37,17 @@ void *no_progress(void *pdata_);
 void *progress_manager(void *pdata_);
 void *progress_file(void *pdata_);
 void *progress_text(void *pdata_);
+#ifdef FRAMEBUFFER_PROGRESS
+void *progress_framebuffer(void *pdata_);
+void *progress_framebuffer_helper(void *pdata_);
+#endif // def FRAMEBUFFER_PROGRESS
 #ifdef SDL_PROGRESS
 void *progress_sdl2(void *pdata_);
-void *progress_sdl2_helper(void *sdlhelperdata_);
+void *progress_sdl2_helper(void *graphicshelperdata_);
+static int sdl_pos[2] = {SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED};
+#endif // def SDL_PROGRESS
 
-struct sdlhelperdata {
+struct graphicshelperdata {
 	pthread_cond_t *cond;
 	pthread_mutex_t *mutex;
 	pthread_rwlock_t *datalock;
@@ -45,9 +58,7 @@ struct sdlhelperdata {
 	double *rawdata_;
 };
 
-int sdl_wait_time = 0;
-int sdl_pos[2] = {SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED};
-#endif // def SDL_PROGRESS
+static int end_wait_time = 0;
 
 static FILE *progressfile = NULL;
 static bool progressfile_defaultname = false;
@@ -117,15 +128,6 @@ bool progress_option(int c, char *optarg) {
 		case 'SDL':
 			add_progressor(progress_sdl2);
 			break;
-		case 'wait':
-			if (optarg == 0) {
-				sdl_wait_time = -1; // indefinitely
-			}
-			else if (sscanf(optarg, "%d", &sdl_wait_time) != 1) {
-				fprintf(stderr, "Invalid wait time: %s.\n", optarg);
-				exit(EXIT_FAILURE);
-			}
-			break;
 		case 'pos':
 			ret = sscanf(optarg, "%d,%d%n", &sdl_pos[0], &sdl_pos[1], &count);
 			if (ret != 2 || sdl_pos[0] < 0 || sdl_pos[1] < 0 || optarg[count] != 0) {
@@ -134,6 +136,20 @@ bool progress_option(int c, char *optarg) {
 			}
 			break;
 	#endif // def SDL_PROGRESS
+	#ifdef FRAMEBUFFER_PROGRESS
+		case 'fram':
+			add_progressor(progress_framebuffer);
+			break;
+	#endif // def FRAMEBUFFER_PROGRESS
+		case 'wait':
+			if (optarg == 0) {
+				end_wait_time = -1; // indefinitely
+			}
+			else if (sscanf(optarg, "%d", &end_wait_time) != 1) {
+				fprintf(stderr, "Invalid wait time: %s.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
+			break;
 		default:
 			return false;
 	}
@@ -308,7 +324,7 @@ void *progress_sdl2(void *pdata_) {
 	pthread_rwlock_init(&datacopylock, NULL);
 	bool sdl_finished = false;
 	
-	struct sdlhelperdata sdata = {
+	struct graphicshelperdata gdata = {
 		&cond,
 		&mutex,
 		&datacopylock,
@@ -321,7 +337,7 @@ void *progress_sdl2(void *pdata_) {
 	
 	pthread_t helper;
 	
-	pthread_create(&helper, NULL, progress_sdl2_helper, &sdata);
+	pthread_create(&helper, NULL, progress_sdl2_helper, &gdata);
 	
 	
 	while (!*finished) {
@@ -354,16 +370,16 @@ void *progress_sdl2(void *pdata_) {
 	return NULL;
 }
 
-void *progress_sdl2_helper(void *sdata_) {
-	struct sdlhelperdata *sdata = (struct sdlhelperdata*) sdata_;
-	pthread_cond_t *cond = sdata->cond;
-	pthread_mutex_t *mutex = sdata->mutex;
-	pthread_rwlock_t *datalock = sdata->datalock;
-	const volatile bool *finished = sdata->finished;
-	int dimx = sdata->dimx;
-	int dimy = sdata->dimy;
-	int depth = sdata->depth;
-	double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) sdata->rawdata_;
+void *progress_sdl2_helper(void *gdata_) {
+	struct graphicshelperdata *gdata = (struct graphicshelperdata*) gdata_;
+	pthread_cond_t *cond = gdata->cond;
+	pthread_mutex_t *mutex = gdata->mutex;
+	pthread_rwlock_t *datalock = gdata->datalock;
+	const volatile bool *finished = gdata->finished;
+	int dimx = gdata->dimx;
+	int dimy = gdata->dimy;
+	int depth = gdata->depth;
+	double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
 	
 	
 	SDL_Window *window = NULL;
@@ -429,7 +445,7 @@ void *progress_sdl2_helper(void *sdata_) {
 		}
 	}
 	pthread_rwlock_unlock(datalock);
-	if (sdl_wait_time < 0) {
+	if (end_wait_time < 0) {
 		bool waiting = true;
 		while(waiting) {
 			SDL_Event event;
@@ -444,7 +460,7 @@ void *progress_sdl2_helper(void *sdata_) {
 	}
 	else {
 		bool waiting = true;
-		for (int i = 0; waiting && i < sdl_wait_time; ++i) {
+		for (int i = 0; waiting && i < end_wait_time; ++i) {
 			for (int j = 0; waiting && j < 1000/20; ++j) {
 				SDL_Event event;
 				while (waiting && SDL_PollEvent(&event)) {
@@ -473,6 +489,194 @@ void *progress_sdl2_helper(void *sdata_) {
 	return NULL;
 }
 #endif // def SDL_PROGRESS
+
+
+
+#ifdef FRAMEBUFFER_PROGRESS
+void *progress_framebuffer(void *pdata_) {
+	struct progressdata *pdata = (struct progressdata *) pdata_;
+	
+	pthread_rwlock_t *datalock = pdata->datalock;
+	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
+	const struct pnmdata *const data = pdata->data;
+	int dimx = data->dimx, dimy = data->dimy, depth = data->depth;
+	double (*rawdata)[dimx][depth] = scalloc(dimy, sizeof(*rawdata)); // use memcpy each time
+	const volatile bool *finished = pdata->finished;
+	int step_count = 0;
+	
+	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+	pthread_rwlock_t datacopylock;
+	pthread_rwlock_init(&datacopylock, NULL);
+	bool framebuffer_finished = false;
+	
+	struct graphicshelperdata gdata = {
+		&cond,
+		&mutex,
+		&datacopylock,
+		&framebuffer_finished,
+		dimx,
+		dimy,
+		depth,
+		(double*)rawdata
+	};
+	
+	pthread_t helper;
+	
+	pthread_create(&helper, NULL, progress_framebuffer_helper, &gdata);
+	
+	
+	while (!*finished) {
+		pthread_barrier_wait(progressbarrier);
+		pthread_rwlock_rdlock(datalock);
+		pthread_barrier_wait(progressbarrier); // ensure rdlock
+		if (step_count % progress_interval == 0) {
+			pthread_rwlock_wrlock(&datacopylock);
+			memcpy(rawdata, data->rawdata, dimy*sizeof(*rawdata));
+			pthread_rwlock_unlock(datalock);
+			pthread_rwlock_unlock(&datacopylock);
+			pthread_cond_signal(&cond);
+		}
+		else {
+			pthread_rwlock_unlock(datalock);
+		}
+		++step_count;
+	}
+	pthread_rwlock_rdlock(datalock);
+	pthread_rwlock_wrlock(&datacopylock);
+	memcpy(rawdata, data->rawdata, dimy*sizeof(*rawdata));
+	pthread_rwlock_unlock(&datacopylock);
+	pthread_rwlock_unlock(datalock);
+	
+	framebuffer_finished = true;
+	pthread_cond_signal(&cond);
+	
+	debug_0;
+	pthread_join(helper, NULL);
+	return NULL;
+}
+
+void *progress_framebuffer_helper(void *gdata_) {
+	struct graphicshelperdata *gdata = (struct graphicshelperdata*) gdata_;
+	pthread_cond_t *cond = gdata->cond;
+	pthread_mutex_t *mutex = gdata->mutex;
+	pthread_rwlock_t *datalock = gdata->datalock;
+	const volatile bool *finished = gdata->finished;
+	int dimx = gdata->dimx;
+	int dimy = gdata->dimy;
+	int depth = gdata->depth;
+	double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
+	
+	int fbfd = 0;
+	struct fb_var_screeninfo vinfo;
+	struct fb_fix_screeninfo finfo;
+	long int screensize = 0;
+	char *fbp = NULL;
+	
+	// Open the file for reading and writing
+	fbfd = open("/dev/fb0", O_RDWR);
+	if (!fbfd) {
+		fprintf(stderr, "Error: cannot open framebuffer device.\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	// Get fixed screen information
+	if (ioctl(fbfd, FBIOGET_FSCREENINFO, &finfo)) {
+		fprintf(stderr, "Error reading fixed information.\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	// Get variable screen information
+	if (ioctl(fbfd, FBIOGET_VSCREENINFO, &vinfo)) {
+		fprintf(stderr, "Error reading variable information.\n");
+		exit(EXIT_FAILURE);
+	}
+	// map framebuffer to user memory 
+	screensize = finfo.smem_len;
+	
+	fbp = mmap(
+		NULL,
+		screensize, 
+		PROT_READ | PROT_WRITE, 
+		MAP_SHARED, 
+		fbfd,
+		0
+	);
+	unsigned char (*pixels)[finfo.line_length/4][4] = (unsigned char(*)[finfo.line_length/4][4]) fbp;
+	int cx = vinfo.xres / 2;
+	int cy = vinfo.yres / 2;
+	
+	if (dimx > vinfo.xres) {
+		fprintf(stderr, "Image too wide for framebuffer (%d > %d).\n", dimx, vinfo.xres);
+		exit(EXIT_FAILURE);
+	}
+	if (dimy > vinfo.yres) {
+		fprintf(stderr, "Image too tall for framebuffer (%d > %d).\n", dimy, vinfo.yres);
+		exit(EXIT_FAILURE);
+	}
+	
+	while (!*finished) {
+		struct timespec abstime;
+		clock_gettime(CLOCK_REALTIME, &abstime);
+		if (abstime.tv_nsec >= 80000000) abstime.tv_sec++, abstime.tv_nsec -= 80000000;
+		else abstime.tv_nsec += 20000000;
+		if (pthread_cond_timedwait(cond, mutex, &abstime) == 0) {
+			pthread_rwlock_rdlock(datalock);
+			// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
+			for (int y = 0; y < dimy; ++y) {
+				for (int x = 0; x < dimx; ++x) {
+					//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+					pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
+					pixels[y][x][1] = rawdata[y][x][1]*255;
+					pixels[y][x][2] = rawdata[y][x][0]*255;
+				}
+			}
+			pthread_rwlock_unlock(datalock);
+		}
+	}
+	pthread_rwlock_rdlock(datalock);
+	// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
+	for (int y = 0; y < dimy; ++y) {
+		for (int x = 0; x < dimx; ++x) {
+			pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
+			pixels[y][x][1] = rawdata[y][x][1]*255;
+			pixels[y][x][2] = rawdata[y][x][0]*255;
+		}
+	}
+	pthread_rwlock_unlock(datalock);
+	if (end_wait_time < 0) {
+		bool waiting = true;
+		while(waiting) {
+			for (int y = 0; y < dimy; ++y) {
+				for (int x = 0; x < dimx; ++x) {
+					pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
+					pixels[y][x][1] = rawdata[y][x][1]*255;
+					pixels[y][x][2] = rawdata[y][x][0]*255;
+				}
+			}
+			usleep(20000);
+		}
+	}
+	else {
+		bool waiting = true;
+		for (int i = 0; waiting && i < end_wait_time; ++i) {
+			for (int j = 0; waiting && j < 1000/20; ++j) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						pixels[y][x][0] = rawdata[y][x][0]*255;
+						pixels[y][x][1] = rawdata[y][x][1]*255;
+						pixels[y][x][2] = rawdata[y][x][2]*255;
+					}
+				}
+				usleep(20000);
+			}
+		}
+	}
+	debug_0;
+	return NULL;
+}
+#endif // def FRAMEBUFFER_PROGRESS
+
 
 
 
