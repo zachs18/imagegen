@@ -606,12 +606,12 @@ void *progress_framebuffer_helper(void *gdata_) {
 	int cx = vinfo.xres / 2;
 	int cy = vinfo.yres / 2;
 	
-	if (dimx > vinfo.xres) {
-		fprintf(stderr, "Image too wide for framebuffer (%d > %d).\n", dimx, vinfo.xres);
+	if (dimx > vinfo.xres_virtual) {
+		fprintf(stderr, "Image too wide for framebuffer (%d > %d).\n", dimx, vinfo.xres_virtual);
 		exit(EXIT_FAILURE);
 	}
 	if (dimy > vinfo.yres) {
-		fprintf(stderr, "Image too tall for framebuffer (%d > %d).\n", dimy, vinfo.yres);
+		fprintf(stderr, "Image too tall for framebuffer (%d > %d).\n", dimy, vinfo.yres_virtual);
 		exit(EXIT_FAILURE);
 	}
 	

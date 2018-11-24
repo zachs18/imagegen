@@ -15,7 +15,8 @@
 	{"divide", required_argument, NULL, 'divw'}, \
 	{"noshuffle", no_argument, NULL, 'nshf'}, \
 	{"maxfitness", required_argument, NULL, 'maxf'}, \
-	{"symmetry", required_argument, NULL, 'symm'},
+	{"symmetry", required_argument, NULL, 'symm'}, \
+	{"outer", no_argument, NULL, 'oute'},
 
 #define GENERATE_HELP \
 	"Generate Options\n" \
@@ -104,6 +105,5 @@ extern void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_);
 extern void (*shuffleoffsets)(void);
 
 extern double inner_fitness(int dimx, int dimy, double *values_, struct pixel pixel, double *color);
-
 
 #endif // GENERATE_h

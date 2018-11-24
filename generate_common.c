@@ -217,6 +217,9 @@ bool generate_option(int c, char *optarg) {
 			}
 			symmetric = true;
 			break;
+		case 'oute':
+			inner = false;
+			break;
 		default:
 			return false;
 	}
