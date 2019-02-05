@@ -219,7 +219,7 @@ static void *generate_inner_worker_normal(void *gdata_) {
 					used[y+dy][x+dx] = true;
 					(*pixels)++;
 					if (valid_edge_inner_normal(dimx, dimy, x+dx, y+dy, (bool*) used))
-						add_edge_inner_normal(dimx, dimy, x+dx, y+dy, edgelist, (bool*) used);
+						add_edge_inner_normal(dimx, dimy, x+dx, y+dy, (struct edgelist *const) edgelist, (bool*) used);
 					break;
 				}
 			}
@@ -473,7 +473,7 @@ static void *generate_outer_worker_normal(void *gdata_) {
 						!used[ty][tx]
 					   ) {
 						debug(-2, "Adding edge at %d,%d next to %d,%d (used)\n", tx, ty, x, y);
-						add_edge_outer_normal_nocheck(dimx, dimy, tx, ty, edgelist, (bool*) used);
+						add_edge_outer_normal_nocheck(dimx, dimy, tx, ty, (struct edgelist *const) edgelist, (bool*) used);
 					}
 				}
 			}
@@ -505,6 +505,7 @@ static bool valid_edge_outer_normal(int dimx, int dimy, int x, int y, bool *used
 }
 
 static bool add_edge_outer_normal_nocheck(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_) {
+	// Doesn't do bounds checking; callers that already did that
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	int edgecount = edgelist->edgecount;
 	//if (x < 0 || x >= dimx || y < 0 || y >= dimy || used[y][x])

@@ -156,11 +156,13 @@ bool progress_option(int c, char *optarg) {
 	return true;
 }
 
-void progress_finalize(const char *progname, int dimx, int dimy, unsigned int seed, int depth) {
-	debug(-3, "progress == %p\n", progress);
+void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int seed, int depth) {
 	if (progress == NULL || progressfile_defaultname) { // No progress was requested, use default file output
+		char *progname = strdup(progname_);
+		debug(-3, "progress == %p\n", progress);
 		char *tempstr = smalloc(128);
 		char *base = basename(progname);
+		free(progname);
 		snprintf(tempstr, 128, "progress_%s_%dx%d_%u.p%cm", base, dimx, dimy, seed, depth == 1 ? 'g' : 'p');
 		progressfile = fopen(tempstr, "wb");
 		if (progressfile == NULL) {

@@ -12,6 +12,4 @@ struct floodplane {
 extern struct floodplane *floodplanes;
 extern int floodplanecount;
 
-extern int (*compute_floodplanes)(struct pnmdata *data, bool *blocked_);
-
 #endif // SEED_COMMON_H

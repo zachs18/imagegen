@@ -11,6 +11,8 @@
 #include "generate_normal.h"
 #include "generate_symmetric.h"
 #include "seed_common.h"
+#include "seed_normal.h"
+#include "seed_symmetric.h"
 #include "setup.h"
 #include "color.h"
 #include "progress.h"

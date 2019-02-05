@@ -213,7 +213,7 @@ static void *generate_inner_worker_symmetric(void *gdata_) {
 					used[y+dy][x+dx] = true;
 					(*pixels)++;
 					if (valid_edge_inner_symmetric(dimx, dimy, x+dx, y+dy, (bool*) used))
-						add_edge_inner_symmetric(dimx, dimy, x+dx, y+dy, edgelist, (bool*) used);
+						add_edge_inner_symmetric(dimx, dimy, x+dx, y+dy, (struct edgelist *const) edgelist, (bool*) used);
 					break;
 				}
 			}
