@@ -29,7 +29,6 @@ void generate_inner_symmetric(struct pnmdata *data, bool *used_, bool *blocked_)
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy, sizeof(struct pixel));
 	volatile int pixels = 0;
@@ -244,7 +243,7 @@ static bool valid_edge_inner_symmetric(int dimx, int dimy, int x, int y, bool *u
 }
 
 static bool add_edge_inner_symmetric(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_) {
-	bool (*used)[dimx] = (bool(*)[dimx]) used_;
+	//bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	int edgecount = edgelist->edgecount;
 	if (x < 0 || x >= dimx || y < 0 || y >= dimy)
 		return false;

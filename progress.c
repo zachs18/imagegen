@@ -200,6 +200,7 @@ void *no_progress(void *pdata_) { // also an example
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
 		if (step_count % progress_interval == 0) {
 			// Output here
+			(void)data;
 		}
 		pthread_rwlock_unlock(datalock);
 		++step_count;
@@ -281,14 +282,14 @@ void *progress_file(void *pdata_) {
 void *progress_text(void *pdata_) {
 	struct progressdata *pdata = (struct progressdata *) pdata_;
 	
-	pthread_rwlock_t *datalock = pdata->datalock;
+	//pthread_rwlock_t *datalock = pdata->datalock; // unused in this function
 	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
 	const struct pnmdata *const data = pdata->data;
 	const volatile bool *finished = pdata->finished;
 	int step_count = 0;
 	int output_count = 0;
 	int size = data->dimx * data->dimy;
-	printf("\n");
+	fprintf(textfile, "\n");
 	while (!*finished) {
 		pthread_barrier_wait(progressbarrier);
 		debug_0;
@@ -605,8 +606,8 @@ void *progress_framebuffer_helper(void *gdata_) {
 		0
 	);
 	unsigned char (*pixels)[finfo.line_length/4][4] = (unsigned char(*)[finfo.line_length/4][4]) fbp;
-	int cx = vinfo.xres / 2;
-	int cy = vinfo.yres / 2;
+	//int cx = vinfo.xres / 2;
+	//int cy = vinfo.yres / 2;
 	
 	if (dimx > vinfo.xres_virtual) {
 		fprintf(stderr, "Image too wide for framebuffer (%d > %d).\n", dimx, vinfo.xres_virtual);

@@ -11,7 +11,7 @@
 #include "debug.h"
 
 static int seed_floodplane_normal(struct floodplane *floodplane, struct pnmdata *data, bool *used_, int seedcount);
-static struct pixel *flood_recursive_normal(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_);
+//static struct pixel *flood_recursive_normal(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_);
 static int flood_iterative_normal(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_);
 
 int seed_image_normal(struct pnmdata *data, bool *used_, int seedcount) {
@@ -37,7 +37,7 @@ int seed_image_normal(struct pnmdata *data, bool *used_, int seedcount) {
 }
 
 static int seed_floodplane_normal(struct floodplane *floodplane, struct pnmdata *data, bool *used_, int seedcount) {
-	int dimx = data->dimx, dimy = data->dimy;
+	int dimx = data->dimx; //, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	if (seedcount < 0); // pass
@@ -93,6 +93,7 @@ int compute_floodplanes_normal(struct pnmdata *data, bool *blocked_) {
 	return floodplanecount;
 }
 
+/*
 static struct pixel *flood_recursive_normal(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_) {
 	// segfaults for images larger than ~300x300
 	bool (*filled)[dimx] = (bool(*)[dimx]) filled_;
@@ -113,6 +114,7 @@ static struct pixel *flood_recursive_normal(int dimx, int dimy, int cx, int cy, 
 	}
 	return pixels;
 }
+*/
 
 static int flood_iterative_normal(int dimx, int dimy, int cx, int cy, struct pixel *pixels, bool *filled_, bool *blocked_) {
 	bool (*filled)[dimx] = (bool(*)[dimx]) filled_;

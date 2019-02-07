@@ -33,7 +33,6 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy, sizeof(struct pixel));
 	volatile int pixels = 0;
@@ -237,7 +236,7 @@ static void *generate_inner_worker_normal(void *gdata_) {
 
 static bool valid_edge_inner_normal(int dimx, int dimy, int x, int y, bool *used_) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
-	if (!used[y][x])
+	if (x < 0 || x >= dimx || y < 0 || y >= dimy || !used[y][x])
 		return false;
 	for (int i = 0; i < offsetcount; ++i) {
 		if (y+offsets[i].dy >= 0 && y+offsets[i].dy < dimy && \
@@ -250,10 +249,8 @@ static bool valid_edge_inner_normal(int dimx, int dimy, int x, int y, bool *used
 }
 
 static bool add_edge_inner_normal(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_) {
-	bool (*used)[dimx] = (bool(*)[dimx]) used_;
+	//bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	int edgecount = edgelist->edgecount;
-	if (x < 0 || x >= dimx || y < 0 || y >= dimy)
-		return false;
 	for (int i = 0; i < edgecount; ++i) {
 		if (edgelist->edges[i].x == x && edgelist->edges[i].y == y)
 			return false;
@@ -271,7 +268,6 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy, sizeof(struct pixel));
 	volatile int pixels = 0;
@@ -493,7 +489,7 @@ static void *generate_outer_worker_normal(void *gdata_) {
 }
 
 static bool valid_edge_outer_normal(int dimx, int dimy, int x, int y, bool *used_) {
-	// I dont think this is needed
+	// I dont think this is needed // <- IDK when i wrote that
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	if (used[y][x])
 		return false;
@@ -506,7 +502,7 @@ static bool valid_edge_outer_normal(int dimx, int dimy, int x, int y, bool *used
 
 static bool add_edge_outer_normal_nocheck(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_) {
 	// Doesn't do bounds checking; callers that already did that
-	bool (*used)[dimx] = (bool(*)[dimx]) used_;
+	//bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	int edgecount = edgelist->edgecount;
 	//if (x < 0 || x >= dimx || y < 0 || y >= dimy || used[y][x])
 	//	return false;
@@ -521,7 +517,6 @@ static bool add_edge_outer_normal_nocheck(int dimx, int dimy, int x, int y, stru
 }
 
 double outer_fitness_normal_maximum(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color) {
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) values_;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double ret = DBL_MAX;
 	debug(-3, "%d,%d\n", pixel.x, pixel.y);
