@@ -43,24 +43,50 @@ void initpnm(struct pnmdata *data) {
 	data->comments = NULL;
 	data->next = NULL;
 }
-
 /**
- * @brief Free an allocated pnmdata struct
+ * @brief Free the contents of and re-initialize pnmdata struct
  */
-void freepnm(struct pnmdata *data) {
-	if (data->next != NULL) {
-		freepnm(data->next);
-		data->next = NULL;
-	}
+void reinitpnm(struct pnmdata *data) {
+	if (data == NULL) return;
+	data->dimx = -1;
+	data->dimy = -1;
+	data->maxval = -1;
+	data->depth = -1;
+
+	freepnm(data->next);
+	data->next = NULL;
+
 	if (data->comments != NULL) {
 		for (int i = 0; i < data->commentcount; ++i) {
 			free(data->comments[i]);
 		}
 		free(data->comments);
-		data->comments = NULL;
 	}
+	data->commentcount = 0;
+	data->comments = NULL;
+
 	free(data->rawdata);
-	free(data);
+	data->rawdata = NULL;
+
+}
+
+/**
+ * @brief Free an allocated pnmdata struct
+ */
+void freepnm(struct pnmdata *data) {
+	while (data != NULL) {
+		struct pnmdata *next = data->next;
+		if (data->comments != NULL) {
+			for (int i = 0; i < data->commentcount; ++i) {
+				free(data->comments[i]);
+			}
+			free(data->comments);
+			data->comments = NULL;
+		}
+		free(data->rawdata);
+		free(data);
+		data = next;
+	}
 }
 
 
@@ -164,14 +190,14 @@ bool freadpnm(struct pnmdata *data, FILE *file) {
 				}
 			}
 		}
-		else if (maxval > 0 && maxval < 256) {
+		else if (maxval >= 256 && maxval < 65536) {
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < depth; ++d) {
 						val = fgetc(file) * 256;
 						val += fgetc(file); // sequence point between two fgetc calls
-						if (val < 0) values[y][x][d] = 0.;
-						else if (val > maxval) values[y][x][d] = 1.;
+						if (val <= 0) values[y][x][d] = 0.;
+						else if (val >= maxval) values[y][x][d] = 1.;
 						else values[y][x][d] = ((double)maxval) / val;
 					}
 				}
@@ -203,7 +229,7 @@ bool freadpnm(struct pnmdata *data, FILE *file) {
 		else return false;
 		return true;
 	}
-	else if (format == '4') { // PBM
+	else if (format == '4') { // PBM TODO
 		fprintf(stderr, "UGGH, PBM is a pain.");
 		return false;
 	}
@@ -280,11 +306,11 @@ bool fwritepnm(const struct pnmdata *data, FILE *file) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < depth; ++d) {
 						val = (int) (maxval * values[y][x][d]);
-						if (val < 0) {
+						if (val <= 0) {
 							fputc(0, file);
 							fputc(0, file);
 						}
-						else if (val > maxval) {
+						else if (val >= maxval) {
 							fputc(maxval/256, file);
 							fputc(maxval%256, file);
 						}

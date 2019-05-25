@@ -8,7 +8,7 @@
 struct pnmdata {
 	int dimx; /** Width */
 	int dimy; /** Height */
-	int maxval; /** Hightest sample value */
+	int maxval; /** Highest sample value */
 	int depth; /** Samples per pixel */
 	int commentcount; /** Number of comments */
 	double *rawdata; /** actually a  double(*)[dimx][depth] */
@@ -18,6 +18,7 @@ struct pnmdata {
 
 struct pnmdata *allocpnm(void);
 void initpnm(struct pnmdata *data);
+void reinitpnm(struct pnmdata *data);
 void freepnm(struct pnmdata *data);
 
 bool freadpnm(struct pnmdata *data, FILE *file);

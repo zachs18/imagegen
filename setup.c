@@ -22,7 +22,6 @@ static int maxval = -1;
 int depth = -1; // used in color.h
 static unsigned int seed;
 static bool seed_given = false;
-static char **comments;
 
 bool setup_option(int c, char *optarg) {
 	int ret, count;

@@ -49,25 +49,22 @@ const char helptext[] = \
 int main(int argc, char **argv) {
 	int c;
 	while ((c = getopt_long(argc, argv , shortopts, longopts, NULL)) != -1) {
-		switch (c) {
-			default:
-				if (setup_option(c, optarg) || \
-					input_option(c, optarg) || \
-					generate_option(c, optarg) || \
-					color_option(c, optarg) || \
-					progress_option(c, optarg) || \
-					output_option(c, optarg) || \
-					debug_option(c, optarg)
-				) {
-					//pass;
-				}
-				else if (c == 'h') {
-					fprintf(stderr, "%s", helptext);
-					exit(EXIT_SUCCESS);
-				}
-				else {
-					fprintf(stderr, "Unrecognized option: %c\n", c == '?' ? optopt : c);
-				}
+		if (setup_option(c, optarg) || \
+			input_option(c, optarg) || \
+			generate_option(c, optarg) || \
+			color_option(c, optarg) || \
+			progress_option(c, optarg) || \
+			output_option(c, optarg) || \
+			debug_option(c, optarg)
+		) {
+			//pass;
+		}
+		else if (c == 'h') {
+			fprintf(stderr, "%s", helptext);
+			exit(EXIT_SUCCESS);
+		}
+		else {
+			fprintf(stderr, "Unrecognized option: %c\n", c == '?' ? optopt : c);
 		}
 	}
 	struct pnmdata *data = allocpnm();
@@ -77,17 +74,16 @@ int main(int argc, char **argv) {
 	//bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	debug_1;
 	input_finalize(data, used_, blocked_);
-	
+
 	debug_1;
 	generate_finalize(data, blocked_);
-	
+
 	debug_1;
 	color_initialize();
-	
+
 	debug_1;
 	generate(data, used_, blocked_);
-	
+
 	debug_1;
 	output(data);
-	
 }
