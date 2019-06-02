@@ -221,12 +221,13 @@ void *progress_manager(void *pdata_) {
 	
 	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
 	const volatile bool *finished = pdata->finished;
+	volatile bool child_finished = false;
 	
 	struct progressdata child_pdata = {
 		pdata->datalock,
 		child_barrier,
 		pdata->data,
-		finished
+		&child_finished
 	};
 	pthread_t progressors[progresslist_count];
 	for (int i = 0; i < progresslist_count; ++i) {
@@ -235,13 +236,20 @@ void *progress_manager(void *pdata_) {
 	}
 	
 	while (!*finished) {
+		debug(1, "%s\n", *finished ? "finished" : "not finished");
 		pthread_barrier_wait(progressbarrier);
 		pthread_barrier_wait(child_barrier);
-		
+		debug_1;
 		
 		pthread_barrier_wait(child_barrier); // ensure rdlock
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
+		debug(1, "%s\n", *finished ? "finished" : "not finished");
 	}
+	debug_1;
+	pthread_barrier_wait(child_barrier);
+	child_finished = true;
+	pthread_barrier_wait(child_barrier);
+
 	debug_0;
 	for (int i = 0; i < progresslist_count; ++i) {
 	debug_0;
@@ -259,18 +267,26 @@ void *progress_file(void *pdata_) {
 	const struct pnmdata *const data = pdata->data;
 	const volatile bool *finished = pdata->finished;
 	int step_count = 0;
+	debug_0;
 	while (!*finished) {
 		pthread_barrier_wait(progressbarrier);
+	debug_0;
 		
 		pthread_rwlock_rdlock(datalock);
+	debug_0;
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
+	debug_0;
 		if (step_count % progress_interval == 0) {
 			fwritepnm(data, progressfile);
 		}
+	debug_0;
 		pthread_rwlock_unlock(datalock);
 		++step_count;
+	debug_0;
 	}
+	debug_0;
 	pthread_rwlock_rdlock(datalock);
+	debug_0;
 	for (int i = 0; i < extras; ++i) {
 		fwritepnm(data, progressfile);
 	}
@@ -303,7 +319,9 @@ void *progress_text(void *pdata_) {
 		debug_0;
 	}
 		debug_0;
+
 	fprintf(textfile, "Finished\x1b[0K\n");
+	
 	fflush(textfile);
 	debug_0;
 	return NULL;
@@ -365,8 +383,10 @@ void *progress_sdl2(void *pdata_) {
 	pthread_rwlock_unlock(&datacopylock);
 	pthread_rwlock_unlock(datalock);
 	
+	
 	sdl_finished = true;
 	pthread_cond_signal(&cond);
+
 	
 	debug_0;
 	pthread_join(helper, NULL);
@@ -551,8 +571,10 @@ void *progress_framebuffer(void *pdata_) {
 	pthread_rwlock_unlock(&datacopylock);
 	pthread_rwlock_unlock(datalock);
 	
+	
 	framebuffer_finished = true;
 	pthread_cond_signal(&cond);
+
 	
 	debug_0;
 	pthread_join(helper, NULL);

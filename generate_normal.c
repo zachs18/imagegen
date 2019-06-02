@@ -80,7 +80,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		0,	// this changes per thread,
 			// so we need to use supervisorbarrier to wait until the thread has read it
 	};
-	bool finished = false;
+	volatile bool finished = false;
 	struct progressdata progressdata = {
 		datalock,
 		progressbarrier,
@@ -146,6 +146,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 			}
 		}
 	}
+	debug_0;
 	pthread_barrier_wait(progressbarrier); // last progress image (completed)
 	finished = true; // between barriers to avoid race condition
 	pthread_barrier_wait(progressbarrier); // make sure progress rdlocked, progress will then exit
