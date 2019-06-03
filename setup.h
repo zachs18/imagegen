@@ -31,7 +31,7 @@
 	"	--seed <uint> -S <uint>    Random seed.\n" \
 	""
 
-extern int depth;
+extern int depth, dimx, dimy;
 
 bool setup_option(int c, char *optarg);
 

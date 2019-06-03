@@ -24,6 +24,7 @@
 #include "safelib.h"
 #include "generate_common.h" // workercount
 #include "pnmlib.h"
+#include "setup.h" // dimx, dimy
 #include "debug.h"
 
 static int extras = 0;
@@ -139,6 +140,16 @@ bool progress_option(int c, char *optarg) {
 			mask = allocpnm();
 			freadpnm(mask, maskfile);
 			fclose(maskfile);
+			if (dimx == -1) dimx = mask->dimx;
+			if (dimx != mask->dimx) {
+				fprintf(stderr, "Progress mask file must have same size as image generated (%dx%d specified, %dx%d mask)\n", dimx, dimy, mask->dimx, mask->dimy);
+				exit(EXIT_FAILURE);
+			}
+			if (dimy == -1) dimy = mask->dimy;
+			if (dimy != mask->dimy) {
+				fprintf(stderr, "Progress mask file must have same size as image generated (%dx%d specified, %dx%d mask)\n", dimx, dimy, mask->dimx, mask->dimy);
+				exit(EXIT_FAILURE);
+			}
 			break;
 	#ifdef SDL_PROGRESS
 		case 'SDL':
@@ -275,7 +286,12 @@ void *progress_manager(void *pdata_) {
 	return NULL;
 }
 
+void *progress_file_masked(void *pdata_);
+
 void *progress_file(void *pdata_) {
+	if (mask != NULL) {
+		return progress_file_masked(pdata_);
+	}
 	struct progressdata *pdata = (struct progressdata *) pdata_;
 	debug_0;
 	pthread_rwlock_t *datalock = pdata->datalock;
@@ -283,32 +299,138 @@ void *progress_file(void *pdata_) {
 	const struct pnmdata *const data = pdata->data;
 	const volatile bool *finished = pdata->finished;
 	int step_count = 0;
-	if (mask != NULL) {
-		fprintf(stderr, "Progress mask not currently supported for file output.\n");
-		debug(1, "Progress mask not currently supported for file output.\n");
-	}
 	debug_0;
 	while (!*finished) {
 		pthread_barrier_wait(progressbarrier);
 	debug_0;
 		
 		pthread_rwlock_rdlock(datalock);
-	debug_0;
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
-	debug_0;
 		if (step_count % progress_interval == 0) {
 			fwritepnm(data, progressfile);
 		}
-	debug_0;
 		pthread_rwlock_unlock(datalock);
 		++step_count;
 	debug_0;
 	}
+	pthread_rwlock_rdlock(datalock);
+	for (int i = 0; i < extras; ++i) {
+		fwritepnm(data, progressfile);
+	}
+	pthread_rwlock_unlock(datalock);
+	debug_0;
+	return NULL;
+}
+
+void *progress_file_masked(void *pdata_) {
+	struct progressdata *pdata = (struct progressdata *) pdata_;
+	debug_0;
+	pthread_rwlock_t *datalock = pdata->datalock;
+	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
+	const struct pnmdata *const data = pdata->data;
+	const double (*rawdata)[dimx][depth] = (double (*)[dimx][depth]) data->rawdata;
+	const double (*maskdata)[dimx][mask->depth] = (double (*)[dimx][mask->depth]) mask->rawdata;
+	int masked_depth = depth >= mask->depth ? depth : mask->depth;
+	double (*masked_data)[dimx][masked_depth] = calloc(dimy, sizeof(*masked_data));
+	struct pnmdata masked = {dimx, dimy, data->maxval >= mask->maxval ? data->maxval : mask->maxval, masked_depth, data->commentcount, (double*) masked_data, data->comments, NULL};
+	const volatile bool *finished = pdata->finished;
+	int step_count = 0;
+	debug_0;
+	while (!*finished) {
+		pthread_barrier_wait(progressbarrier);
+		
+		pthread_rwlock_rdlock(datalock);
+		pthread_barrier_wait(progressbarrier); // ensure rdlock
+		if (step_count % progress_interval == 0) {
+			if (depth == 3 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+						masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][1];
+						masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][2];
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+						masked_data[y][x][1] = rawdata[y][x][0] * maskdata[y][x][1];
+						masked_data[y][x][2] = rawdata[y][x][0] * maskdata[y][x][2];
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 1) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+						masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][0];
+						masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][0];
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 1) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+					}
+				}
+			}
+			else {
+				fprintf(stderr, "Logic error: unsupported depth\n");
+				exit(EXIT_FAILURE);
+			}
+			pthread_rwlock_unlock(datalock);
+			fwritepnm(&masked, progressfile);
+		}
+		else {
+			pthread_rwlock_unlock(datalock);
+		}
+		++step_count;
+	}
 	debug_0;
 	pthread_rwlock_rdlock(datalock);
 	debug_0;
+	if (depth == 3 && mask->depth == 3) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+				masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][1];
+				masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][2];
+			}
+		}
+	}
+	else if (depth == 1 && mask->depth == 3) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+				masked_data[y][x][1] = rawdata[y][x][0] * maskdata[y][x][1];
+				masked_data[y][x][2] = rawdata[y][x][0] * maskdata[y][x][2];
+			}
+		}
+	}
+	else if (depth == 3 && mask->depth == 1) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+				masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][0];
+				masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][0];
+			}
+		}
+	}
+	else if (depth == 1 && mask->depth == 1) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
+			}
+		}
+	}
+	else {
+		fprintf(stderr, "Logic error: unsupported depth\n");
+		exit(EXIT_FAILURE);
+	}
 	for (int i = 0; i < extras; ++i) {
-		fwritepnm(data, progressfile);
+		fwritepnm(&masked, progressfile);
 	}
 	pthread_rwlock_unlock(datalock);
 	debug_0;
@@ -451,14 +573,14 @@ void *progress_sdl2_helper(void *gdata_) {
 		if (pthread_cond_timedwait(cond, mutex, &abstime) == 0) {
 			pthread_rwlock_rdlock(datalock);
 			// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
-			if (depth == 3) {
+			if (depth == 3 && mask == NULL) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
 					}
 				}
 			}
-			else {
+			else if (depth == 1 && mask == NULL) {
 				double tmp;
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
@@ -466,6 +588,57 @@ void *progress_sdl2_helper(void *gdata_) {
 						pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 					}
 				}
+			}
+			else if (depth == 3 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						pixelarr[y][x] = SDL_MapRGB(
+							pixelformat,
+							rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+							rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+							rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+						);
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 1) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						pixelarr[y][x] = SDL_MapRGB(
+							pixelformat,
+							rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+							rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+							rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+						);
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 3) {
+				double tmp;
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						tmp = rawdata[y][x][0]*255;
+						pixelarr[y][x] = SDL_MapRGB(
+							pixelformat,
+							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+						);
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 1) {
+				double tmp;
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+					}
+				}
+			}
+			else {
+				debug(-1, "Logic error.\n");
+				exit(EXIT_FAILURE);
 			}
 			pthread_rwlock_unlock(datalock);
 		}
@@ -493,16 +666,72 @@ void *progress_sdl2_helper(void *gdata_) {
 	}
 	pthread_rwlock_rdlock(datalock);
 	// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
-	for (int y = 0; y < dimy; ++y) {
-		for (int x = 0; x < dimx; ++x) {
-			if (depth == 3) {
+	if (depth == 3 && mask == NULL) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
 				pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
 			}
-			else {
-				double tmp = rawdata[y][x][0]*255;
+		}
+	}
+	else if (depth == 1 && mask == NULL) {
+		double tmp;
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				tmp = rawdata[y][x][0]*255;
 				pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 			}
 		}
+	}
+	else if (depth == 3 && mask->depth == 3) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				pixelarr[y][x] = SDL_MapRGB(
+					pixelformat,
+					rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+					rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+					rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+				);
+			}
+		}
+	}
+	else if (depth == 3 && mask->depth == 1) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				pixelarr[y][x] = SDL_MapRGB(
+					pixelformat,
+					rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+					rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+					rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+				);
+			}
+		}
+	}
+	else if (depth == 1 && mask->depth == 3) {
+		double tmp;
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				tmp = rawdata[y][x][0]*255;
+				pixelarr[y][x] = SDL_MapRGB(
+					pixelformat,
+					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+				);
+			}
+		}
+	}
+	else if (depth == 1 && mask->depth == 1) {
+		double tmp;
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+				pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+			}
+		}
+	}
+	else {
+		debug(-1, "Logic error.\n");
+		exit(EXIT_FAILURE);
 	}
 	pthread_rwlock_unlock(datalock);
 	if (end_wait_time < 0) {
@@ -672,7 +901,7 @@ void *progress_framebuffer_helper(void *gdata_) {
 		fprintf(stderr, "Image too wide for framebuffer (%d > %d).\n", dimx, vinfo.xres_virtual);
 		exit(EXIT_FAILURE);
 	}
-	if (dimy > vinfo.yres) {
+	if (dimy > vinfo.yres_virtual) {
 		fprintf(stderr, "Image too tall for framebuffer (%d > %d).\n", dimy, vinfo.yres_virtual);
 		exit(EXIT_FAILURE);
 	}
@@ -685,50 +914,201 @@ void *progress_framebuffer_helper(void *gdata_) {
 		if (pthread_cond_timedwait(cond, mutex, &abstime) == 0) {
 			pthread_rwlock_rdlock(datalock);
 			// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
-			for (int y = 0; y < dimy; ++y) {
-				for (int x = 0; x < dimx; ++x) {
-					//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-					pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
-					pixels[y][x][1] = rawdata[y][x][1]*255;
-					pixels[y][x][2] = rawdata[y][x][0]*255;
+			if (depth == 3 && mask == NULL) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255; // BGR pixel order
+					}
 				}
+			}
+			else if (depth == 1 && mask == NULL) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255;
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 1) { 
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 1) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+					}
+				}
+			}
+			else {
+				debug(-1, "Logic error.\n");
+				exit(EXIT_FAILURE);
 			}
 			pthread_rwlock_unlock(datalock);
 		}
 	}
 	pthread_rwlock_rdlock(datalock);
 	// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
-	for (int y = 0; y < dimy; ++y) {
-		for (int x = 0; x < dimx; ++x) {
-			pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
-			pixels[y][x][1] = rawdata[y][x][1]*255;
-			pixels[y][x][2] = rawdata[y][x][0]*255;
-		}
-	}
 	pthread_rwlock_unlock(datalock);
-	if (end_wait_time < 0) {
-		bool waiting = true;
-		while(waiting) {
-			for (int y = 0; y < dimy; ++y) {
-				for (int x = 0; x < dimx; ++x) {
-					pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
-					pixels[y][x][1] = rawdata[y][x][1]*255;
-					pixels[y][x][2] = rawdata[y][x][0]*255;
+	if (end_wait_time <= 0) { // add == 0 to reduce code
+		bool waiting = (end_wait_time < 0);
+		do {
+			if (depth == 3 && mask == NULL) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255; // BGR pixel order
+					}
 				}
 			}
+			else if (depth == 1 && mask == NULL) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255;
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 1) { 
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 1) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+					}
+				}
+			}
+			else {
+				debug(-1, "Logic error.\n");
+				exit(EXIT_FAILURE);
+			}
 			usleep(20000);
-		}
+		} while (waiting);
 	}
 	else {
 		bool waiting = true;
 		for (int i = 0; waiting && i < end_wait_time; ++i) {
 			for (int j = 0; waiting && j < 1000/20; ++j) {
-				for (int y = 0; y < dimy; ++y) {
-					for (int x = 0; x < dimx; ++x) {
-						pixels[y][x][0] = rawdata[y][x][0]*255;
-						pixels[y][x][1] = rawdata[y][x][1]*255;
-						pixels[y][x][2] = rawdata[y][x][2]*255;
+				if (depth == 3 && mask == NULL) {
+					for (int y = 0; y < dimy; ++y) {
+						for (int x = 0; x < dimx; ++x) {
+							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+							pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
+							pixels[y][x][1] = rawdata[y][x][1]*255; // BGR pixel order
+							pixels[y][x][2] = rawdata[y][x][0]*255; // BGR pixel order
+						}
 					}
+				}
+				else if (depth == 1 && mask == NULL) {
+					for (int y = 0; y < dimy; ++y) {
+						for (int x = 0; x < dimx; ++x) {
+							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+							pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255;
+						}
+					}
+				}
+				else if (depth == 3 && mask->depth == 3) {
+					for (int y = 0; y < dimy; ++y) {
+						for (int x = 0; x < dimx; ++x) {
+							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+							pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
+							pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
+							pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+						}
+					}
+				}
+				else if (depth == 1 && mask->depth == 3) {
+					for (int y = 0; y < dimy; ++y) {
+						for (int x = 0; x < dimx; ++x) {
+							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+							pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
+							pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
+							pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+						}
+					}
+				}
+				else if (depth == 3 && mask->depth == 1) { 
+					for (int y = 0; y < dimy; ++y) {
+						for (int x = 0; x < dimx; ++x) {
+							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+							pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
+							pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+							pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						}
+					}
+				}
+				else if (depth == 1 && mask->depth == 1) {
+					for (int y = 0; y < dimy; ++y) {
+						for (int x = 0; x < dimx; ++x) {
+							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+							pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						}
+					}
+				}
+				else {
+					debug(-1, "Logic error.\n");
+					exit(EXIT_FAILURE);
 				}
 				usleep(20000);
 			}

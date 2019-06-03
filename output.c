@@ -37,7 +37,8 @@ bool output_option(int c, char *optarg) {
 void output(const struct pnmdata *data) {
 	//fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
 	if (outfile == NULL)
-		outfile = stdout;
+		return;
+		//outfile = stdout;
 	if (!fwritepnm(data, outfile)) {
 		fprintf(stderr, "Failed to output file with dimensions %dx%d, maxval %d, and depth %d.\n", data->dimx, data->dimy, data->maxval, data->depth);
 		exit(EXIT_FAILURE);

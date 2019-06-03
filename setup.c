@@ -17,7 +17,7 @@
 #define SEED_STR " seed: "
 #define WORKERS_STR " workers: "
 
-static int dimx = -1, dimy = -1;
+int dimx = -1, dimy = -1; // used in progress.c for progressmask
 static int maxval = -1;
 int depth = -1; // used in color.h
 static unsigned int seed;
