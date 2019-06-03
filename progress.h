@@ -38,6 +38,7 @@
 	{"noprogress", no_argument, NULL, 'nopr'}, \
 	{"progresscount", required_argument, NULL, 'M'}, \
 	{"progressinterval", required_argument, NULL, 'I'}, \
+	{"progressmask", required_argument, NULL, 'mask'}, \
 	SDL_LONGOPTS \
 	FRAMEBUFFER_LONGOPTS
 
@@ -52,6 +53,7 @@
 	"	--wait [seconds]                   Wait [seconds] seconds before closing, if negative, don't close automatically.\n"\
     "	                                        [seconds] defaults to -1 if not given, and 0 if --wait is not given.\n"\
 	"	--pos <x>,<y>                      Place the SDL window at <x>,<y>.\n"\
+	"	--progressmask <file>              Progress images will be multiplied by mask.\n"\
 	""
 
 struct progressdata {

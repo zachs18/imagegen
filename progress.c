@@ -33,6 +33,8 @@ static void *(**progresslist)(void *pdata_) = NULL;
 static int progresslist_count = 0;
 static int progress_interval = -1;
 
+static struct pnmdata *mask = NULL;
+
 void *no_progress(void *pdata_);
 void *progress_manager(void *pdata_);
 void *progress_file(void *pdata_);
@@ -55,7 +57,7 @@ struct graphicshelperdata {
 	int dimx;
 	int dimy;
 	int depth;
-	double *rawdata_;
+	const double *rawdata_;
 };
 
 static int end_wait_time = 0;
@@ -123,6 +125,20 @@ bool progress_option(int c, char *optarg) {
 			break;
 		case 'nopr':
 			add_progressor(no_progress);
+			break;
+		case 'mask':
+			if (mask != NULL) {
+				fprintf(stderr, "Mask file already specified (duplicate: %s).\n", optarg);
+				exit(EXIT_FAILURE);
+			}
+			FILE *maskfile = fopen(optarg, "rb");
+			if (maskfile == NULL) {
+				fprintf(stderr, "Invalid mask file: %s.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
+			mask = allocpnm();
+			freadpnm(mask, maskfile);
+			fclose(maskfile);
 			break;
 	#ifdef SDL_PROGRESS
 		case 'SDL':
@@ -267,6 +283,10 @@ void *progress_file(void *pdata_) {
 	const struct pnmdata *const data = pdata->data;
 	const volatile bool *finished = pdata->finished;
 	int step_count = 0;
+	if (mask != NULL) {
+		fprintf(stderr, "Progress mask not currently supported for file output.\n");
+		debug(1, "Progress mask not currently supported for file output.\n");
+	}
 	debug_0;
 	while (!*finished) {
 		pthread_barrier_wait(progressbarrier);
@@ -431,12 +451,17 @@ void *progress_sdl2_helper(void *gdata_) {
 		if (pthread_cond_timedwait(cond, mutex, &abstime) == 0) {
 			pthread_rwlock_rdlock(datalock);
 			// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
-			for (int y = 0; y < dimy; ++y) {
-				for (int x = 0; x < dimx; ++x) {
-					if (depth == 3) {
+			if (depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
 						pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
 					}
-					else {
+				}
+			}
+			else {
+				double tmp;
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
 						double tmp = rawdata[y][x][0]*255;
 						pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 					}

@@ -12,7 +12,7 @@
 	{"seeds", required_argument, NULL, 'e'}, \
 	{"offsets", required_argument, NULL, 'O'}, \
 	{"workers", required_argument, NULL, 'w'}, \
-	{"divide", required_argument, NULL, 'divw'}, \
+	{"divide", no_argument, NULL, 'divw'}, \
 	{"noshuffle", no_argument, NULL, 'nshf'}, \
 	{"maxfitness", required_argument, NULL, 'maxf'}, \
 	{"symmetry", required_argument, NULL, 'symm'}, \
