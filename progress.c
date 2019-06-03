@@ -433,7 +433,13 @@ void *progress_sdl2_helper(void *gdata_) {
 			// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
-					pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+					if (depth == 3) {
+						pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+					}
+					else {
+						double tmp = rawdata[y][x][0]*255;
+						pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+					}
 				}
 			}
 			pthread_rwlock_unlock(datalock);
@@ -464,7 +470,13 @@ void *progress_sdl2_helper(void *gdata_) {
 	// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
 	for (int y = 0; y < dimy; ++y) {
 		for (int x = 0; x < dimx; ++x) {
-			pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+			if (depth == 3) {
+				pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+			}
+			else {
+				double tmp = rawdata[y][x][0]*255;
+				pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+			}
 		}
 	}
 	pthread_rwlock_unlock(datalock);
