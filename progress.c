@@ -462,7 +462,7 @@ void *progress_sdl2_helper(void *gdata_) {
 				double tmp;
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
-						double tmp = rawdata[y][x][0]*255;
+						tmp = rawdata[y][x][0]*255;
 						pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 					}
 				}
