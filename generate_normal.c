@@ -354,6 +354,8 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		}
 		fprintf(testfile, "\n");
 	}*/
+	while (start_wait_time = sleep(start_wait_time)); // wait to start
+	
 	while (pixels < dimx*dimy) {
 		debug(0, "%d\n", pixels);
 		pthread_barrier_wait(groupbarrier); // sync with workers
@@ -496,12 +498,14 @@ static void *generate_outer_worker_normal(void *gdata_) {
 }
 
 static bool valid_edge_outer_normal(int dimx, int dimy, int x, int y, bool *used_) {
-	// I dont think this is needed // <- IDK when i wrote that
+	// Assumes: 0 <= x < dimx, 0 <= y < dimy
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	if (used[y][x])
 		return false;
 	for (int i = 0; i < offsetcount; ++i) {
-		if (used[y+offsets[i].dy][x+offsets[i].dx])
+		//if (used[y+offsets[i].dy][x+offsets[i].dx])
+		int tx = x+offsets[i].dx, ty = y+offsets[i].dy;
+		if (!(0 > tx || tx >= dimx || 0 > ty || ty >= dimy) && used[y+offsets[i].dy][x+offsets[i].dx])
 			return true;
 	}
 	return false;
