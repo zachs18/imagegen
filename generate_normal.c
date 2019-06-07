@@ -106,6 +106,9 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		}
 		fprintf(testfile, "\n");
 	}*/
+	
+	while (start_wait_time = sleep(start_wait_time)); // wait to start
+	
 	while (pixels < dimx*dimy) {
 		debug(0, "%d\n", pixels);
 		pthread_barrier_wait(groupbarrier); // sync with workers

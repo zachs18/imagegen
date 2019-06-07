@@ -47,7 +47,9 @@ void *progress_framebuffer_helper(void *pdata_);
 #ifdef SDL_PROGRESS
 void *progress_sdl2(void *pdata_);
 void *progress_sdl2_helper(void *graphicshelperdata_);
+void *progress_sdl2_helper_scaled(void *graphicshelperdata_);
 static int sdl_pos[2] = {SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED};
+static int sdl_scale[2] = {1, 1};
 #endif // def SDL_PROGRESS
 
 struct graphicshelperdata {
@@ -162,6 +164,13 @@ bool progress_option(int c, char *optarg) {
 				exit(EXIT_FAILURE);
 			}
 			break;
+		case 'scal':
+			ret = sscanf(optarg, "%d%*c%d%n", &sdl_scale[0], &sdl_scale[1], &count);
+			if (ret != 2 || sdl_scale[0] < 1 || sdl_scale[1] < 1 || optarg[count] != 0) {
+				fprintf(stderr, "Invalid scale: '%s'.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
+			break;
 	#endif // def SDL_PROGRESS
 	#ifdef FRAMEBUFFER_PROGRESS
 		case 'fram':
@@ -169,7 +178,7 @@ bool progress_option(int c, char *optarg) {
 			break;
 	#endif // def FRAMEBUFFER_PROGRESS
 		case 'wait':
-			if (optarg == 0) {
+			if (optarg == NULL) {
 				end_wait_time = -1; // indefinitely
 			}
 			else if (sscanf(optarg, "%d", &end_wait_time) != 1) {
@@ -500,7 +509,12 @@ void *progress_sdl2(void *pdata_) {
 	
 	pthread_t helper;
 	
-	pthread_create(&helper, NULL, progress_sdl2_helper, &gdata);
+	if (sdl_scale[0] == 1 && sdl_scale[1] == 1) {
+		pthread_create(&helper, NULL, progress_sdl2_helper, &gdata);
+	}
+	else {
+		pthread_create(&helper, NULL, progress_sdl2_helper_scaled, &gdata);
+	}
 	
 	
 	while (!*finished) {
@@ -565,8 +579,11 @@ void *progress_sdl2_helper(void *gdata_) {
 	Uint32 (*pixelarr)[pitch/sizeof(Uint32)] = (Uint32(*)[pitch]) surface->pixels;
 	SDL_PixelFormat *pixelformat = surface->format;
 	debug(-2, "\n\n");
+	
+	
+	struct timespec abstime;
+	
 	while (!*finished) {
-		struct timespec abstime;
 		clock_gettime(CLOCK_REALTIME, &abstime);
 		if (abstime.tv_nsec >= 80000000) abstime.tv_sec++, abstime.tv_nsec -= 80000000;
 		else abstime.tv_nsec += 20000000;
@@ -726,6 +743,309 @@ void *progress_sdl2_helper(void *gdata_) {
 			for (int x = 0; x < dimx; ++x) {
 				tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
 				pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+			}
+		}
+	}
+	else {
+		debug(-1, "Logic error.\n");
+		exit(EXIT_FAILURE);
+	}
+	pthread_rwlock_unlock(datalock);
+	if (end_wait_time < 0) {
+		bool waiting = true;
+		while(waiting) {
+			SDL_Event event;
+			while (waiting && SDL_PollEvent(&event)) {
+				if (event.type == SDL_QUIT) {
+					waiting = false;
+				}
+			}
+			SDL_UpdateWindowSurface(window);
+			SDL_Delay(20);
+		}
+	}
+	else {
+		bool waiting = true;
+		for (int i = 0; waiting && i < end_wait_time; ++i) {
+			for (int j = 0; waiting && j < 1000/20; ++j) {
+				SDL_Event event;
+				while (waiting && SDL_PollEvent(&event)) {
+					if (event.type == SDL_QUIT) {
+						waiting = false;
+					}
+					else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+						SDL_KeyboardEvent *ev = (SDL_KeyboardEvent*) &event;
+						if (
+							(
+								ev->keysym.sym == SDLK_ESCAPE ||
+								ev->keysym.sym == SDLK_q
+							)
+							&& ev->state == SDL_PRESSED
+						) {
+							waiting = false;
+						}
+					}
+				}
+				SDL_UpdateWindowSurface(window);
+				SDL_Delay(20);
+			}
+		}
+	}
+	debug_0;
+	return NULL;
+}
+
+void *progress_sdl2_helper_scaled(void *gdata_) {
+	struct graphicshelperdata *gdata = (struct graphicshelperdata*) gdata_;
+	pthread_cond_t *cond = gdata->cond;
+	pthread_mutex_t *mutex = gdata->mutex;
+	pthread_rwlock_t *datalock = gdata->datalock;
+	const volatile bool *finished = gdata->finished;
+	int dimx = gdata->dimx;
+	int dimy = gdata->dimy;
+	int depth = gdata->depth;
+	double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
+	
+	
+	SDL_Window *window = NULL;
+	SDL_Surface *surface = NULL;
+	
+	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+		fprintf(stderr, "SDL could not initialize: SDL_Error: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+	window = SDL_CreateWindow("Image Generator (SDL2)", sdl_pos[0], sdl_pos[1], dimx*sdl_scale[0], dimy*sdl_scale[1], SDL_WINDOW_SHOWN);
+	if (window == NULL) {
+		fprintf(stderr, "SDL could not create window: SDL_Error: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+	surface = SDL_GetWindowSurface(window);
+	int pitch = surface->pitch;
+	
+	Uint32 (*pixelarr)[pitch/sizeof(Uint32)] = (Uint32(*)[pitch]) surface->pixels;
+	SDL_PixelFormat *pixelformat = surface->format;
+	debug(-2, "\n\n");
+	while (!*finished) {
+		struct timespec abstime;
+		clock_gettime(CLOCK_REALTIME, &abstime);
+		if (abstime.tv_nsec >= 80000000) abstime.tv_sec++, abstime.tv_nsec -= 80000000;
+		else abstime.tv_nsec += 20000000;
+		if (pthread_cond_timedwait(cond, mutex, &abstime) == 0) {
+			pthread_rwlock_rdlock(datalock);
+			// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
+			if (depth == 3 && mask == NULL) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						Uint32 temp =  SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+								pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+							}
+						}
+					}
+				}
+			}
+			else if (depth == 1 && mask == NULL) {
+				double tmp;
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						tmp = rawdata[y][x][0]*255;
+						Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+								pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+							}
+						}
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 3) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						Uint32 temp = SDL_MapRGB(
+							pixelformat,
+							rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+							rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+							rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+						);
+						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+								pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+							}
+						}
+					}
+				}
+			}
+			else if (depth == 3 && mask->depth == 1) {
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						Uint32 temp = SDL_MapRGB(
+							pixelformat,
+							rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+							rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+							rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+						);
+						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+								pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+							}
+						}
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 3) {
+				double tmp;
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						tmp = rawdata[y][x][0]*255;
+						Uint32 temp = SDL_MapRGB(
+							pixelformat,
+							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+						);
+						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+								pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+							}
+						}
+					}
+				}
+			}
+			else if (depth == 1 && mask->depth == 1) {
+				double tmp;
+				for (int y = 0; y < dimy; ++y) {
+					for (int x = 0; x < dimx; ++x) {
+						tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+								pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+							}
+						}
+					}
+				}
+			}
+			else {
+				debug(-1, "Logic error.\n");
+				exit(EXIT_FAILURE);
+			}
+			pthread_rwlock_unlock(datalock);
+		}
+		SDL_UpdateWindowSurface(window);
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_QUIT) {
+				debug(-1, "Quitting\n");
+				exit(EXIT_FAILURE);
+			}
+			else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+				SDL_KeyboardEvent *ev = (SDL_KeyboardEvent*) &event;
+				if (
+					(
+						ev->keysym.sym == SDLK_ESCAPE ||
+						ev->keysym.sym == SDLK_q
+					)
+					&& ev->state == SDL_PRESSED
+				) {
+					debug(-1, "Quitting\n");
+					exit(EXIT_FAILURE);
+				}
+			}
+		}
+	}
+	pthread_rwlock_rdlock(datalock);
+	// Output here // maybe eventually only update changed pixels with help from generate.{c,h}
+	if (depth == 3 && mask == NULL) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				Uint32 temp =  SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+						pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+					}
+				}
+			}
+		}
+	}
+	else if (depth == 1 && mask == NULL) {
+		double tmp;
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				tmp = rawdata[y][x][0]*255;
+				Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+						pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+					}
+				}
+			}
+		}
+	}
+	else if (depth == 3 && mask->depth == 3) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				Uint32 temp = SDL_MapRGB(
+					pixelformat,
+					rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+					rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+					rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+				);
+				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+						pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+					}
+				}
+			}
+		}
+	}
+	else if (depth == 3 && mask->depth == 1) {
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				Uint32 temp = SDL_MapRGB(
+					pixelformat,
+					rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+					rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
+					rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+				);
+				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+						pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+					}
+				}
+			}
+		}
+	}
+	else if (depth == 1 && mask->depth == 3) {
+		double tmp;
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				tmp = rawdata[y][x][0]*255;
+				Uint32 temp = SDL_MapRGB(
+					pixelformat,
+					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
+					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
+					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+				);
+				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+						pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+					}
+				}
+			}
+		}
+	}
+	else if (depth == 1 && mask->depth == 1) {
+		double tmp;
+		for (int y = 0; y < dimy; ++y) {
+			for (int x = 0; x < dimx; ++x) {
+				tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+				Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+						pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+					}
+				}
 			}
 		}
 	}

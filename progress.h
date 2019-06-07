@@ -12,6 +12,7 @@
 # define SDL_LONGOPTS \
 	{"SDL", no_argument, NULL, 'SDL'}, \
 	{"wait", required_argument, NULL, 'wait'}, \
+	{"scale", required_argument, NULL, 'scal'}, \
 	{"pos", required_argument, NULL, 'pos'},
 #else // ndef SDL_PROGRESS
 # define SDL_SHORTOPTS

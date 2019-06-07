@@ -49,6 +49,8 @@ int sym_maxcolumn = 0;
 
 double maxfitness = DBL_MAX;
 
+int start_wait_time = 0;
+
 
 /*struct progressdata {
 	pthread_rwlock_t *datalock;
@@ -221,6 +223,13 @@ bool generate_option(int c, char *optarg) {
 			break;
 		case 'oute':
 			inner = false;
+			break;
+		case 'wsta': // wait start time
+			ret = sscanf(optarg, "%d%n", &start_wait_time, &count);
+			if (ret != 1 || start_wait_time < 0 || optarg[count] != 0) {
+				fprintf(stderr, "Invalid start wait time: '%s'.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
 			break;
 		default:
 			return false;

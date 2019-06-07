@@ -15,6 +15,7 @@
 	{"divide", no_argument, NULL, 'divw'}, \
 	{"noshuffle", no_argument, NULL, 'nshf'}, \
 	{"maxfitness", required_argument, NULL, 'maxf'}, \
+	{"startwait", required_argument, NULL, 'wsta'}, \
 	{"symmetry", required_argument, NULL, 'symm'}, \
 	{"outer", no_argument, NULL, 'oute'},
 
@@ -95,6 +96,8 @@ extern int sym_maxrow;
 extern int sym_maxcolumn;
 
 extern double maxfitness;
+
+extern int start_wait_time;
 
 bool generate_option(int c, char *optarg);
 
