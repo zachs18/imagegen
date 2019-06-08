@@ -114,8 +114,8 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 				fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
 				exit(EXIT_FAILURE);
 			}
-			double (*currentvalues)[dimx][depth] = (double(*)[dimx][depth]) currentdata->rawdata;
 			int currentdepth = currentdata->depth;
+			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) currentdata->rawdata;
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < currentdepth; ++d) {
@@ -141,8 +141,8 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 				fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
 				exit(EXIT_FAILURE);
 			}
-			double (*currentvalues)[dimx][depth] = (double(*)[dimx][depth]) currentdata->rawdata;
 			int currentdepth = currentdata->depth;
+			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) currentdata->rawdata;
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < currentdepth; ++d) {
