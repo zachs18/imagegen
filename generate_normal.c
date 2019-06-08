@@ -287,15 +287,17 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	for (int y = 0; y < dimy; ++y) {
 		for (int x = 0; x < dimx; ++x) {
 			if (used[y][x]) {
-				for (int i = 0; i < offsetcount; ++i) {
-					int ty = y+offsets[i].dy, tx = x+offsets[i].dx;
-					if (ty >= 0 && ty < dimy && tx >= 0 && tx < dimx && !used[ty][tx] && !blocked[ty][tx]) {
-						edgelist.edges[edgelist.edgecount].x = tx;
-						edgelist.edges[edgelist.edgecount].y = ty;
-						edgelist.edgecount++;
+				if (!blocked[y][x]) {
+					for (int i = 0; i < offsetcount; ++i) {
+						int ty = y+offsets[i].dy, tx = x+offsets[i].dx;
+						if (ty >= 0 && ty < dimy && tx >= 0 && tx < dimx && !used[ty][tx] && !blocked[ty][tx]) {
+							edgelist.edges[edgelist.edgecount].x = tx;
+							edgelist.edges[edgelist.edgecount].y = ty;
+							edgelist.edgecount++;
+						}
 					}
 				}
-				// we want to increase pixel count for blocked pixels, but not have them as edges
+				// we want to increase pixel count for blocked pixels, but not have their neighbors as edges
 				pixels++;debug(0, "%d,%d\n", x, y);
 				//fprintf(stderr, "Main thread, %d %s:%d\n", pixels, __FILE__, __LINE__);
 			}
