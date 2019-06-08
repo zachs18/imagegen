@@ -140,7 +140,10 @@ bool progress_option(int c, char *optarg) {
 				exit(EXIT_FAILURE);
 			}
 			mask = allocpnm();
-			freadpnm(mask, maskfile);
+			if (!freadpnm(mask, maskfile)) {
+				fprintf(stderr, "Could not read progressmask file.\n");
+				exit(EXIT_FAILURE);
+			}
 			fclose(maskfile);
 			if (dimx == -1) dimx = mask->dimx;
 			if (dimx != mask->dimx) {

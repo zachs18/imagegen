@@ -8,6 +8,7 @@
 #include "safelib.h"
 #include "pnmlib.h"
 #include "debug.h"
+#include "setup.h" // dimx, dimy
 
 typedef enum {
 	WHITELIST,
@@ -15,8 +16,8 @@ typedef enum {
 	NONETYPE,
 } listtype_t;
 
-static FILE *infile = NULL;
-static FILE *listfile = NULL;
+static struct pnmdata *input = NULL;
+static struct pnmdata *list = NULL;
 static listtype_t listtype = NONETYPE;
 
 
@@ -25,7 +26,9 @@ bool input_option(int c, char *optarg) {
 	//int ret;
 	switch (c) {
 		case 'i':
-			if (infile != NULL) {
+			(void)0; // label cannot be part of a declaration
+			FILE *infile = NULL;
+			if (input != NULL) {
 				fprintf(stderr, "Repeated input file '%s'.\n", optarg);
 				exit(EXIT_FAILURE);
 			}
@@ -39,12 +42,53 @@ bool input_option(int c, char *optarg) {
 					exit(EXIT_FAILURE);
 				}
 			}
+			input = allocpnm();
+			if (!freadpnm(input, infile)) {
+				fprintf(stderr, "Failed to read input file.\n");
+				exit(EXIT_FAILURE);
+			}
+			fclose(infile);
+			if (dimx != -1 && dimx < input->dimx) {
+				fprintf(stderr, "Input file must fit in image (%dx%d vs %dx%d).\n", dimx, dimy, input->dimx, input->dimy);
+				exit(EXIT_FAILURE);
+			}
+			if (dimy != -1 && dimy < input->dimy) {
+				fprintf(stderr, "Input file must fit in image (%dx%d vs %dx%d).\n", dimx, dimy, input->dimx, input->dimy);
+				exit(EXIT_FAILURE);
+			}
 			break;
 		case 'W':
 		case 'B':
-			listfile = fopen(optarg, "rb");
-			if (listfile == NULL) {
-				fprintf(stderr, "Could not open %slist file '%s'.\n", c == 'W' ? "white" : "black", optarg);
+			(void)0; // label cannot be part of declaration
+			FILE *listfile = NULL;
+			if (list != NULL) {
+				fprintf(stderr, "Repeated whitelist/blacklist file '%s'.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
+			else if (!strcmp("-", optarg)) {
+				listfile = stdin;
+			}
+			else {
+				listfile = fopen(optarg, "rb");
+				if (listfile == NULL) {
+					fprintf(stderr, "Could not open %slist file '%s'.\n", c == 'W' ? "white" : "black", optarg);
+					exit(EXIT_FAILURE);
+				}
+			}
+			list = allocpnm();
+			if (!freadpnm(list, listfile)) {
+				fprintf(stderr, "Failed to read input file.\n");
+				exit(EXIT_FAILURE);
+			}
+			fclose(listfile);
+			if (dimx == -1) dimx = list->dimx;
+			if (dimx != list->dimx) {
+				fprintf(stderr, "%slist file must have same size as image generated (%dx%d vs %dx%d).\n", (c == 'W' ? "White" : "Black"), dimx, dimy, list->dimx, list->dimy);
+				exit(EXIT_FAILURE);
+			}
+			if (dimy == -1) dimy = list->dimy;
+			if (dimy != list->dimy) {
+				fprintf(stderr, "%slist file must have same size as image generated (%dx%d vs %dx%d).\n", (c == 'W' ? "White" : "Black"), dimx, dimy, list->dimx, list->dimy);
 				exit(EXIT_FAILURE);
 			}
 			listtype = (c == 'W') ? WHITELIST : BLACKLIST;
@@ -62,60 +106,45 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
-	if (infile != NULL) {
-		struct pnmdata indata;
-		initpnm(&indata);
-		bool success = freadpnm(&indata, infile);
-		if (!success) {
-			fprintf(stderr, "Invalid input file.\n");
+	if (input != NULL) {
+		if (input->dimx > dimx) {
+			fprintf(stderr, "Invalid width of input image %d is greater than output image %d.\n", input->dimx, dimx);
 			exit(EXIT_FAILURE);
 		}
-		if (indata.dimx > dimx) {
-			fprintf(stderr, "Invalid width of input image %d is greater than output image %d.\n", indata.dimx, dimx);
+		if (input->dimy > dimy) {
+			fprintf(stderr, "Invalid height of input image %d is greater than output image %d.\n", input->dimy, dimy);
 			exit(EXIT_FAILURE);
 		}
-		if (indata.dimy > dimy) {
-			fprintf(stderr, "Invalid height of input image %d is greater than output image %d.\n", indata.dimy, dimy);
+		if (input->depth != depth) {
+			fprintf(stderr, "Invalid depth of input image %d is not equal to output image %d.\n", input->depth, depth);
 			exit(EXIT_FAILURE);
 		}
-		if (indata.depth != depth) {
-			fprintf(stderr, "Invalid depth of input image %d is not equal to output image %d.\n", indata.depth, depth);
-			exit(EXIT_FAILURE);
-		}
-		int startx = (dimx - indata.dimx) / 2;
-		//int endx = startx + indata.dimx;
-		int starty = (dimy - indata.dimy) / 2;
-		//int endy = starty + indata.dimy;
-		double (*invalues)[indata.dimx][depth] = (double(*)[indata.dimx][depth]) indata.rawdata;
+		int startx = (dimx - input->dimx) / 2;
+		//int endx = startx + input->dimx;
+		int starty = (dimy - input->dimy) / 2;
+		//int endy = starty + input->dimy;
+		double (*invalues)[input->dimx][depth] = (double(*)[input->dimx][depth]) input->rawdata;
 	//fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
-		for (int y = 0; y < indata.dimy; ++y) {
+		for (int y = 0; y < input->dimy; ++y) {
 			memcpy(&values[starty+y][startx], invalues[y], sizeof(*invalues));
-			memset(&used[starty+y][startx], true, indata.dimx*sizeof(bool));
+			memset(&used[starty+y][startx], true, input->dimx*sizeof(bool));
 		}
 	//fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
 	}
-	if (listfile != NULL) {
-		struct pnmdata *listdata;
-		listdata = allocpnm();
-		struct pnmdata *currentdata = listdata;
-		if (!freadpnm(listdata, listfile)) {
-			fprintf(stderr, "Invalid whitelist file.\n");
-			exit(EXIT_FAILURE);
-		}
-		fclose(listfile);
+	if (list != NULL) {
 		if (listtype == WHITELIST) {
 			memset(used_, false, dimx*dimy*sizeof(bool));
 			memset(blocked_, false, dimx*dimy*sizeof(bool));
-			if (currentdata->dimx != dimx) {
-				fprintf(stderr, "Invalid width of whitelist image %d is not equal to output image %d.\n", currentdata->dimx, dimx);
+			if (list->dimx != dimx) {
+				fprintf(stderr, "Invalid width of whitelist image %d is not equal to output image %d.\n", list->dimx, dimx);
 				exit(EXIT_FAILURE);
 			}
-			if (currentdata->dimy != dimy) {
-				fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
+			if (list->dimy != dimy) {
+				fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", list->dimy, dimy);
 				exit(EXIT_FAILURE);
 			}
-			int currentdepth = currentdata->depth;
-			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) currentdata->rawdata;
+			int currentdepth = list->depth;
+			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) list->rawdata;
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < currentdepth; ++d) {
@@ -128,21 +157,20 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 					}
 				}
 			}
-			currentdata = currentdata->next;
 		}
 		else {
 			memset(used_, true, dimx*dimy*sizeof(bool));
 			memset(blocked_, true, dimx*dimy*sizeof(bool));
-			if (currentdata->dimx != dimx) {
-				fprintf(stderr, "Invalid width of whitelist image %d is not equal to output image %d.\n", currentdata->dimx, dimx);
+			if (list->dimx != dimx) {
+				fprintf(stderr, "Invalid width of blacklist image %d is not equal to output image %d.\n", list->dimx, dimx);
 				exit(EXIT_FAILURE);
 			}
-			if (currentdata->dimy != dimy) {
-				fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
+			if (list->dimy != dimy) {
+				fprintf(stderr, "Invalid height of blacklist image %d is not equal to output image %d.\n", list->dimy, dimy);
 				exit(EXIT_FAILURE);
 			}
-			int currentdepth = currentdata->depth;
-			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) currentdata->rawdata;
+			int currentdepth = list->depth;
+			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) list->rawdata;
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < currentdepth; ++d) {
@@ -155,7 +183,6 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 					}
 				}
 			}
-			currentdata = currentdata->next;
 		}
 	}
 }
