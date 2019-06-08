@@ -98,67 +98,64 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 		struct pnmdata *listdata;
 		listdata = allocpnm();
 		struct pnmdata *currentdata = listdata;
-		int count = freadpnms(listdata, listfile);
-		fclose(listfile);
-		if (count < 1) {
+		if (!freadpnm(listdata, listfile)) {
 			fprintf(stderr, "Invalid whitelist file.\n");
 			exit(EXIT_FAILURE);
 		}
+		fclose(listfile);
 		if (listtype == WHITELIST) {
 			memset(used_, false, dimx*dimy*sizeof(bool));
 			memset(blocked_, false, dimx*dimy*sizeof(bool));
-			while (currentdata != NULL) {
-				if (currentdata->dimx != dimx) {
-					fprintf(stderr, "Invalid width of whitelist image %d is not equal to output image %d.\n", currentdata->dimx, dimx);
-					exit(EXIT_FAILURE);
-				}
-				if (currentdata->dimy != dimy) {
-					fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
-					exit(EXIT_FAILURE);
-				}
-				double (*currentvalues)[dimx][depth] = (double(*)[dimx][depth]) currentdata->rawdata;
-				for (int y = 0; y < dimy; ++y) {
-					for (int x = 0; x < dimx; ++x) {
-						for (int d = 0; d < depth; ++d) {
-							if (currentvalues[y][x][d] != 1.) { 
-								// if any value is not 1, then the value isn't white, and not allowed
-								used[y][x] = true;
-								blocked[y][x] = true;
-								break;
-							}
+			if (currentdata->dimx != dimx) {
+				fprintf(stderr, "Invalid width of whitelist image %d is not equal to output image %d.\n", currentdata->dimx, dimx);
+				exit(EXIT_FAILURE);
+			}
+			if (currentdata->dimy != dimy) {
+				fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
+				exit(EXIT_FAILURE);
+			}
+			double (*currentvalues)[dimx][depth] = (double(*)[dimx][depth]) currentdata->rawdata;
+			int currentdepth = currentdata->depth;
+			for (int y = 0; y < dimy; ++y) {
+				for (int x = 0; x < dimx; ++x) {
+					for (int d = 0; d < currentdepth; ++d) {
+						if (currentvalues[y][x][d] != 1.) { 
+							// if any value is not 1, then the value isn't white, and not allowed
+							used[y][x] = true;
+							blocked[y][x] = true;
+							break;
 						}
 					}
 				}
-				currentdata = currentdata->next;
 			}
+			currentdata = currentdata->next;
 		}
 		else {
 			memset(used_, true, dimx*dimy*sizeof(bool));
 			memset(blocked_, true, dimx*dimy*sizeof(bool));
-			while (currentdata != NULL) {
-				if (currentdata->dimx != dimx) {
-					fprintf(stderr, "Invalid width of whitelist image %d is not equal to output image %d.\n", currentdata->dimx, dimx);
-					exit(EXIT_FAILURE);
-				}
-				if (currentdata->dimy != dimy) {
-					fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
-					exit(EXIT_FAILURE);
-				}
-				double (*currentvalues)[dimx][depth] = (double(*)[dimx][depth]) currentdata->rawdata;
-				for (int y = 0; y < dimy; ++y) {
-					for (int x = 0; x < dimx; ++x) {
-						for (int d = 0; d < depth; ++d) {
-							if (currentvalues[y][x][d] != 0.) { 
-								// if any value is not 0, then the value isn't black, and is allowed
-								break;
-							}
-							used[y][x] = false;
-							blocked[y][x] = false;
+			if (currentdata->dimx != dimx) {
+				fprintf(stderr, "Invalid width of whitelist image %d is not equal to output image %d.\n", currentdata->dimx, dimx);
+				exit(EXIT_FAILURE);
+			}
+			if (currentdata->dimy != dimy) {
+				fprintf(stderr, "Invalid height of whitelist image %d is not equal to output image %d.\n", currentdata->dimy, dimy);
+				exit(EXIT_FAILURE);
+			}
+			double (*currentvalues)[dimx][depth] = (double(*)[dimx][depth]) currentdata->rawdata;
+			int currentdepth = currentdata->depth;
+			for (int y = 0; y < dimy; ++y) {
+				for (int x = 0; x < dimx; ++x) {
+					for (int d = 0; d < currentdepth; ++d) {
+						if (currentvalues[y][x][d] != 0.) { 
+							// if any value is not 0, then the value isn't black, and is allowed
+							break;
 						}
+						used[y][x] = false;
+						blocked[y][x] = false;
 					}
 				}
-				currentdata = currentdata->next;
 			}
+			currentdata = currentdata->next;
 		}
 	}
 }
