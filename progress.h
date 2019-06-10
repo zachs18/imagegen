@@ -34,7 +34,8 @@
 #define PROGRESS_SHORTOPTS "P::TM:I:" SDL_SHORTOPTS FRAMEBUFFER_SHORTOPTS
 
 #define PROGRESS_LONGOPTS \
-	{"progressfile", optional_argument, NULL, 'P'}, \
+	{"progressfile", required_argument, NULL, 'P'}, \
+	{"defaultprogressfile", no_argument, NULL, 'dP'}, \
 	{"progresstext", no_argument, NULL, 'T'}, \
 	{"noprogress", no_argument, NULL, 'nopr'}, \
 	{"progresscount", required_argument, NULL, 'M'}, \
@@ -47,6 +48,7 @@
 #define PROGRESS_HELP \
 	"Progress Options\n" \
 	"	-P <file> --progressfile <file>    Output progress images as a multi-image PNM file <file>.\n"\
+	"	--defaultprogressfile              Output progress images as a multi-image PNM file with a filename starting with progress_.\n"\
 	"	-P --progresstext                  Output progress on stderr.\n"\
 	"	-M <int> --progresscount <int>     Output <int> extra progress images, repeating the complete image.\n"\
 	"	-I <int> --progressinterval <int>  Output progress images every <int> pixels.\n"\

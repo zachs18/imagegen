@@ -95,9 +95,6 @@ bool progress_option(int c, char *optarg) {
 				fprintf(stderr, "Repeated progress file '%s'.\n", optarg);
 				exit(EXIT_FAILURE);
 			}
-			else if (optarg == 0) {
-				progressfile_defaultname = true;
-			}
 			else if (!strcmp("-", optarg)) {
 				progressfile = stdout;
 			}
@@ -107,6 +104,16 @@ bool progress_option(int c, char *optarg) {
 					fprintf(stderr, "Could not open progress file '%s'.\n", optarg);
 					exit(EXIT_FAILURE);
 				}
+			}
+			add_progressor(progress_file);
+			break;
+		case 'dP':
+			if (progressfile != NULL || progressfile_defaultname) {
+				fprintf(stderr, "Repeated progress file '%s'.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
+			else {
+				progressfile_defaultname = true;
 			}
 			add_progressor(progress_file);
 			break;
@@ -197,6 +204,7 @@ bool progress_option(int c, char *optarg) {
 
 void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int seed, int depth) {
 	if (progress == NULL || progressfile_defaultname) { // No progress was requested, use default file output
+		debug(-3, "%p %d\n", progress, progressfile_defaultname);
 		char *progname = strdup(progname_);
 		debug(-3, "progress == %p\n", progress);
 		char *tempstr = smalloc(128);
