@@ -770,6 +770,18 @@ void *progress_sdl2_helper(void *gdata_) {
 				if (event.type == SDL_QUIT) {
 					waiting = false;
 				}
+				else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+					SDL_KeyboardEvent *ev = (SDL_KeyboardEvent*) &event;
+					if (
+						(
+							ev->keysym.sym == SDLK_ESCAPE ||
+							ev->keysym.sym == SDLK_q
+						)
+						&& ev->state == SDL_PRESSED
+					) {
+						waiting = false;
+					}
+				}
 			}
 			SDL_UpdateWindowSurface(window);
 			SDL_Delay(20);
@@ -1072,6 +1084,19 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 			while (waiting && SDL_PollEvent(&event)) {
 				if (event.type == SDL_QUIT) {
 					waiting = false;
+				}
+				else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+					SDL_KeyboardEvent *ev = (SDL_KeyboardEvent*) &event;
+					if (
+						(
+							ev->keysym.sym == SDLK_ESCAPE ||
+							ev->keysym.sym == SDLK_q
+						)
+						&& ev->state == SDL_PRESSED
+					) {
+						debug(-1, "Quitting\n");
+						exit(EXIT_FAILURE);
+					}
 				}
 			}
 			SDL_UpdateWindowSurface(window);
