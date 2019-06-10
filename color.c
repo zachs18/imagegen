@@ -82,6 +82,39 @@ bool color_option(int c, char *optarg) {
 			}
 			vectorset_base(optarg);
 			break;
+		case 'hues':
+			if (new_color == NULL) {
+				new_color = new_color_vector;
+			}
+			else if (new_color != new_color_vector) {
+				fprintf(stderr, "Cannot change color type after choosing.\n");
+				exit(EXIT_FAILURE);
+			}
+			// Red to Yellow
+			newvectorset();
+			vectorset_base("1,0,0");
+			newvector("0,1,0");
+			// Green to Yellow
+			newvectorset();
+			vectorset_base("0,1,0");
+			newvector("1,0,0");
+			// Green to Cyan
+			newvectorset();
+			vectorset_base("0,1,0");
+			newvector("0,0,1");
+			// Blue to Cyan
+			newvectorset();
+			vectorset_base("0,0,1");
+			newvector("0,1,0");
+			// Blue to Magenta
+			newvectorset();
+			vectorset_base("0,0,1");
+			newvector("1,0,0");
+			// Red to Magenta
+			newvectorset();
+			vectorset_base("1,0,0");
+			newvector("0,0,1");
+			break;
 		default:
 			return false;
 	}

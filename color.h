@@ -13,7 +13,8 @@
 	{"newvectorset", no_argument, NULL, 'n'}, \
 	{"vector", required_argument, NULL, 'v'}, \
 	{"basecolor", required_argument, NULL, 'b'}, \
-	{"vectortype", required_argument, NULL, 't'},
+	{"vectortype", required_argument, NULL, 't'}, \
+	{"hues", no_argument, NULL, 'hues'},
 
 #define COLOR_HELP \
 	"Color Options\n" \
@@ -24,6 +25,7 @@
 	"		-v <vector>    Add <vector> to the current vectorset\n" \
 	"		-b <vector>    Make <vector> the starting color for the current vectorset\n" \
 	"		-t <type>      Change type of vectorset to <type>: full, triangular, or sum_one\n" \
+	"		--hues         All full-intensity hues\n" \
 	""
 
 
