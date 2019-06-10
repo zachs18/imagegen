@@ -19,6 +19,7 @@ typedef enum {
 static struct pnmdata *input = NULL;
 static struct pnmdata *list = NULL;
 static listtype_t listtype = NONETYPE;
+static struct pnmdata *background = NULL;
 
 
 
@@ -77,7 +78,7 @@ bool input_option(int c, char *optarg) {
 			}
 			list = allocpnm();
 			if (!freadpnm(list, listfile)) {
-				fprintf(stderr, "Failed to read input file.\n");
+				fprintf(stderr, "Failed to read %slist file.\n", c == 'W' ? "white" : "black");
 				exit(EXIT_FAILURE);
 			}
 			fclose(listfile);
@@ -93,6 +94,38 @@ bool input_option(int c, char *optarg) {
 			}
 			listtype = (c == 'W') ? WHITELIST : BLACKLIST;
 			break;
+		case 'bkgd':
+			(void)0; // label cannot be part of declaration
+			FILE *bkgdfile = NULL;
+			if (background != NULL) {
+				fprintf(stderr, "Repeated background file '%s'.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
+			else if (!strcmp("-", optarg)) {
+				bkgdfile = stdin;
+			}
+			else {
+				bkgdfile = fopen(optarg, "rb");
+				if (bkgdfile == NULL) {
+					fprintf(stderr, "Could not open background file '%s'.\n", optarg);
+					exit(EXIT_FAILURE);
+				}
+			}
+			background = allocpnm();
+			if (!freadpnm(background, bkgdfile)) {
+				fprintf(stderr, "Failed to read background file.\n");
+				exit(EXIT_FAILURE);
+			}
+			fclose(bkgdfile);
+			if (dimx != -1 && dimx < background->dimx) {
+				fprintf(stderr, "Background file must fit in image (%dx%d vs %dx%d).\n", dimx, dimy, background->dimx, background->dimy);
+				exit(EXIT_FAILURE);
+			}
+			if (dimy != -1 && dimy < background->dimy) {
+				fprintf(stderr, "Background file must fit in image (%dx%d vs %dx%d).\n", dimx, dimy, background->dimx, background->dimy);
+				exit(EXIT_FAILURE);
+			}
+			break;
 		default:
 			return false;
 	}
@@ -106,6 +139,30 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
+	if (background != NULL) {
+		if (background->dimx > dimx) {
+			fprintf(stderr, "Invalid width of background image %d is greater than output image %d.\n", background->dimx, dimx);
+			exit(EXIT_FAILURE);
+		}
+		if (background->dimy > dimy) {
+			fprintf(stderr, "Invalid height of background image %d is greater than output image %d.\n", background->dimy, dimy);
+			exit(EXIT_FAILURE);
+		}
+		if (background->depth != depth) {
+			fprintf(stderr, "Invalid depth of background image %d is not equal to output image %d.\n", background->depth, depth);
+			exit(EXIT_FAILURE);
+		}
+		int startx = (dimx - background->dimx) / 2;
+		//int endx = startx + background->dimx;
+		int starty = (dimy - background->dimy) / 2;
+		//int endy = starty + background->dimy;
+		double (*bkgdvalues)[background->dimx][depth] = (double(*)[background->dimx][depth]) background->rawdata;
+	//fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
+		for (int y = 0; y < background->dimy; ++y) {
+			memcpy(&values[starty+y][startx], bkgdvalues[y], sizeof(*bkgdvalues));
+		}
+	//fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
+	}
 	if (input != NULL) {
 		if (input->dimx > dimx) {
 			fprintf(stderr, "Invalid width of input image %d is greater than output image %d.\n", input->dimx, dimx);
