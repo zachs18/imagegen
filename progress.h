@@ -64,6 +64,7 @@ struct progressdata {
 	pthread_barrier_t *progressbarrier;
 	const struct pnmdata *const data;
 	const volatile bool *finished;
+	const volatile int *edgecount;
 };
 
 bool progress_option(int c, char *optarg);

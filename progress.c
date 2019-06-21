@@ -268,13 +268,15 @@ void *progress_manager(void *pdata_) {
 	
 	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
 	const volatile bool *finished = pdata->finished;
+	const volatile int *edgecount = pdata->edgecount;
 	volatile bool child_finished = false;
 	
 	struct progressdata child_pdata = {
 		pdata->datalock,
 		child_barrier,
 		pdata->data,
-		&child_finished
+		&child_finished,
+		edgecount,
 	};
 	pthread_t progressors[progresslist_count];
 	for (int i = 0; i < progresslist_count; ++i) {
@@ -464,6 +466,7 @@ void *progress_text(void *pdata_) {
 	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
 	const struct pnmdata *const data = pdata->data;
 	const volatile bool *finished = pdata->finished;
+	const volatile int *edgecount = pdata->edgecount;
 	int step_count = 0;
 	int output_count = 0;
 	int size = data->dimx * data->dimy;
@@ -473,7 +476,7 @@ void *progress_text(void *pdata_) {
 		debug_0;
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
 		if (step_count % progress_interval == 0) {
-			fprintf(textfile, "\x1b[AApproximately %4.1lf%% done (%d, %d).\x1b[0K\n", 100 * (double)step_count * workercount / (double)size, progress_interval, step_count);
+			fprintf(textfile, "\x1b[AApproximately %4.1lf%% done (%d, %d, %d).\x1b[0K\n", 100 * (double)step_count * workercount / (double)size, progress_interval, step_count, *edgecount);
 			fflush(textfile);
 			++output_count;;
 		}

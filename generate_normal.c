@@ -86,7 +86,8 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		datalock,
 		progressbarrier,
 		data,
-		&finished
+		&finished,
+		&edgelist.edgecount
 	};
 	pthread_t progressor;
 	pthread_t workers[workercount];
@@ -336,7 +337,8 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		datalock,
 		progressbarrier,
 		data,
-		&finished
+		&finished,
+		&edgelist.edgecount
 	};
 	pthread_t progressor;
 	pthread_t workers[workercount];
