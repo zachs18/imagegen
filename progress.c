@@ -228,7 +228,7 @@ void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int s
 	//progress_interval /= workercount;
 	//debug(-1, "%d %d\n", workercount, progress_interval);
 	if (progress_interval < 1) {
-		progress_interval = 256 / workercount;
+		progress_interval = 256;
 	}
 }
 
