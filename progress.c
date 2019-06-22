@@ -225,7 +225,7 @@ void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int s
 		}
 	}
 	//debug(-1, "%d %d\n", workercount, progress_interval);
-	progress_interval /= workercount;
+	//progress_interval /= workercount;
 	//debug(-1, "%d %d\n", workercount, progress_interval);
 	if (progress_interval < 1) {
 		progress_interval = 256 / workercount;
@@ -476,7 +476,7 @@ void *progress_text(void *pdata_) {
 		debug_0;
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
 		if (step_count % progress_interval == 0) {
-			fprintf(textfile, "\x1b[AApproximately %4.1lf%% done (%d, %d, %d).\x1b[0K\n", 100 * (double)step_count * workercount / (double)size, progress_interval, step_count, *edgecount);
+			fprintf(textfile, "\x1b[AApproximately %4.1lf%% done (%d, %d, %d).\x1b[0K\n", 100 * (double)step_count  / (double)size, progress_interval, step_count, *edgecount);
 			fflush(textfile);
 			++output_count;;
 		}

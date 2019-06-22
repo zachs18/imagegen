@@ -33,9 +33,13 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
+	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy, sizeof(struct pixel));
 	volatile int pixels = 0;
+	volatile int *bests = scalloc(workercount, sizeof(*bests));
+	volatile double *fitnesses = scalloc(workercount, sizeof(*fitnesses));
+	double *color = scalloc(depth, sizeof(*fitnesses));
 	debug_1;
 	seed_image_normal(data, used_, seeds);
 	debug_1;
@@ -62,24 +66,21 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	pthread_barrier_init(supervisorbarrier, NULL, 2);
 	pthread_barrier_t *groupbarrier = smalloc(sizeof(pthread_barrier_t));
 	pthread_barrier_init(groupbarrier, NULL, 1+workercount);
-	pthread_barrier_t *workerbarriers[workercount-1];
-	for (int i = 0; i < workercount-1; ++i) {
-		workerbarriers[i] = smalloc(sizeof(pthread_barrier_t));
-		pthread_barrier_init(workerbarriers[i], NULL, 2);
-	}
 	pthread_barrier_t *progressbarrier = smalloc(sizeof(pthread_barrier_t));
 	pthread_barrier_init(progressbarrier, NULL, 2);
 	struct generatordata generatordata = {
 		datalock,
 		supervisorbarrier,
 		groupbarrier,
-		workerbarriers,
 		data,
 		used_,
 		&edgelist,
 		&pixels,
 		0,	// this changes per thread,
 			// so we need to use supervisorbarrier to wait until the thread has read it
+		bests,
+		fitnesses,
+		color,
 	};
 	volatile bool finished = false;
 	struct progressdata progressdata = {
@@ -98,7 +99,6 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	}
 	pthread_create(&progressor, NULL, progress, &progressdata);
 	pthread_barrier_wait(progressbarrier); // output first (zeroth?) progress image
-
 	pthread_barrier_wait(progressbarrier); // make sure progress rdlocked
 	/*FILE *testfile = fopen("test_.txt", "w");
 	for (int y = 0; y < dimy; ++y) {
@@ -108,16 +108,51 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		fprintf(testfile, "\n");
 	}*/
 	
-	while (start_wait_time = sleep(start_wait_time)); // wait to start
+	while ((start_wait_time = sleep(start_wait_time)) != 0); // wait to start
 	
 	while (pixels < dimx*dimy) {
 		debug(0, "%d\n", pixels);
+		new_color(color);
 		pthread_barrier_wait(groupbarrier); // sync with workers
-		// workers manage themselves for a while, reading then writing
+		// workers manage themselves for a while, reading
 		pthread_barrier_wait(groupbarrier); // sync with workers
+		pthread_rwlock_wrlock(datalock);
+		// Add best pixel here
+		int best = -1;
+		double fitness = DBL_MAX;
+		for (int i = 0; i < workercount; ++i) {
+			if (fitnesses[i] < fitness) {
+				fitness = fitnesses[i];
+				best = i;
+			}
+		}
+		// add pixel to best place
+		if (best != -1) {
+			int x = edgelist.edges[bests[best]].x, y = edgelist.edges[bests[best]].y, dx, dy;
+			shuffleoffsets();
+			for (int i = 0; i < offsetcount; ++i) {
+				dx = offsets[i].dx, dy = offsets[i].dy;
+				if (y+dy >= 0 && y+dy < dimy && \
+					x+dx >= 0 && x+dx < dimx && \
+					!used[y+dy][x+dx]
+				   ) {
+					memcpy(values[y+dy][x+dx], color, depth*sizeof(*color));
+					used[y+dy][x+dx] = true;
+					++pixels;
+					if (valid_edge_inner_normal(dimx, dimy, x+dx, y+dy, (bool*) used))
+						add_edge_inner_normal(dimx, dimy, x+dx, y+dy, (struct edgelist *const) &edgelist, (bool*) used);
+					break;
+				}
+			}
+		}
+		pthread_rwlock_unlock(datalock);
+		
+		pthread_barrier_wait(groupbarrier); // sync with workers
+		
 		debug(0, "%d\n", pixels);
 		// output progress image
 		pthread_barrier_wait(progressbarrier);
+	//debug(-1, "\na\n");
 
 		pthread_barrier_wait(progressbarrier); // make sure progress rdlocked
 		debug(0, "%d\n", pixels);
@@ -154,13 +189,18 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	debug_0;
 	pthread_barrier_wait(progressbarrier); // last progress image (completed)
 	finished = true; // between barriers to avoid race condition
+	debug(1, "AAAAA\n");
 	pthread_barrier_wait(progressbarrier); // make sure progress rdlocked, progress will then exit
+	debug(1, "BBBBB\n");
 	for (int i = 0; i < workercount; ++i) {
 		debug_0;
 		pthread_join(workers[i], NULL);
+		debug(1, "CCCCC %d\n", i);
 	}
 	debug_0;
+	debug(1, "DDDDD\n");
 	pthread_join(progressor, NULL);
+	debug(1, "EEEEE\n");
 	debug_0;
 
 }
@@ -173,70 +213,41 @@ static void *generate_inner_worker_normal(void *gdata_) {
 	pthread_barrier_wait(supervisorbarrier); // All values other than id are not changed
 	pthread_rwlock_t *const datalock = gdata->datalock;
 	pthread_barrier_t *const groupbarrier = gdata->groupbarrier;
-	pthread_barrier_t *const *const wbarriers = gdata->wbarriers;
 	struct pnmdata *const data = gdata->data;
-	volatile struct edgelist *const edgelist = gdata->edgelist;
+	const volatile struct edgelist *const edgelist = gdata->edgelist;
 	const int dimx = data->dimx, dimy = data->dimy;
 	double (*const values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) gdata->used_;
 	volatile int *const pixels = gdata->pixels;
-	bool isfirst = id == 0;
-	bool islast = id == workercount-1;
-	double *color = scalloc(depth, sizeof(*color));
+	volatile int *mybest = gdata->bests + id;
+	volatile double *myfitness = gdata->fitnesses + id;
+	const double *color = gdata->color;
+	
 	int size = dimx*dimy;
 	while (*pixels < size) { // datalock doesn't need to be locked here for pixels?
 		debug(0, "worker %d\n", id);
 		pthread_barrier_wait(groupbarrier); // sync all workers with main thread
 		debug(0, "worker %d\n", id);
 		pthread_rwlock_rdlock(datalock); // read lock until best is found
-		if (!isfirst)
-			pthread_barrier_wait(wbarriers[id-1]); // wait for previous thread to generate its color
-		new_color(color);
-		if (!islast)
-			pthread_barrier_wait(wbarriers[id]); // let the next thread go
-		double bestfitness = maxfitness; // lower if better
-		struct pixel *best = NULL;
-		int range = edgelist->edgecount/workercount;
-		int start = dividework ? range * id : 0;
-		int end = dividework ? (islast ? edgelist->edgecount : range*(id+1)) : edgelist->edgecount;
-		for (int i = start; i < end; ++i) {
+		*myfitness = maxfitness; // lower if better
+		*mybest = -1;
+		int start = id;
+		int end = edgelist->edgecount;
+		for (int i = start; i < end; i += workercount) {
 			double fitness = inner_fitness(dimx, dimy, (double*) values, edgelist->edges[i], color);
-			if (fitness < bestfitness) {
-				bestfitness = fitness;
-				best = &edgelist->edges[i];
+			if (fitness < *myfitness) {
+				*myfitness = fitness;
+				*mybest = i;
 			}
 		}
 		pthread_rwlock_unlock(datalock);
-		if (!isfirst)
-			pthread_barrier_wait(wbarriers[id-1]);
-		pthread_rwlock_wrlock(datalock);
-		// add pixel to best place
-		if (best != NULL) {
-			int x = best->x, y = best->y, dx, dy;
-			shuffleoffsets();
-			for (int i = 0; i < offsetcount; ++i) {
-				dx = offsets[i].dx, dy = offsets[i].dy;
-				if (y+dy >= 0 && y+dy < dimy && \
-					x+dx >= 0 && x+dx < dimx && \
-					!used[y+dy][x+dx]
-				   ) {
-					memcpy(values[y+dy][x+dx], color, depth*sizeof(*color));
-					used[y+dy][x+dx] = true;
-					(*pixels)++;
-					if (valid_edge_inner_normal(dimx, dimy, x+dx, y+dy, (bool*) used))
-						add_edge_inner_normal(dimx, dimy, x+dx, y+dy, (struct edgelist *const) edgelist, (bool*) used);
-					break;
-				}
-			}
-		}
-		pthread_rwlock_unlock(datalock);
-		if (!islast)
-			pthread_barrier_wait(wbarriers[id]);
 		pthread_barrier_wait(groupbarrier);
 		// so we don't access pixels when a thread has a wrlock
 		// also so that either all threads see *pixels < size, or none do
 		// so generate doesn't have to call cancel
+		pthread_barrier_wait(groupbarrier);
 	}
+		debug(0, "worker %d\n", id);
 	return NULL;
 }
 
@@ -257,6 +268,8 @@ static bool valid_edge_inner_normal(int dimx, int dimy, int x, int y, bool *used
 static bool add_edge_inner_normal(int dimx, int dimy, int x, int y, struct edgelist *edgelist, bool *used_) {
 	//bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	int edgecount = edgelist->edgecount;
+	//if (x < 0 || x >= dimx || y < 0 || y >= dimy)
+	//	return false;
 	for (int i = 0; i < edgecount; ++i) {
 		if (edgelist->edges[i].x == x && edgelist->edges[i].y == y)
 			return false;
@@ -267,20 +280,24 @@ static bool add_edge_inner_normal(int dimx, int dimy, int x, int y, struct edgel
 	return true;
 }
 
-static double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color);
-static double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color);
-static double outer_fitness_normal_worst(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color);
+static double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color);
+static double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color);
+static double outer_fitness_normal_worst(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color);
 
-static double (*outer_fitness_normal)(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color) = outer_fitness_normal_average;
+static double (*outer_fitness_normal)(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) = outer_fitness_normal_average;
 
 
 void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
+	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy*offsetcount, sizeof(struct pixel)); // *offsetcount TODO
 	volatile int pixels = 0;
+	volatile int *bests = scalloc(workercount, sizeof(*bests));
+	volatile double *fitnesses = scalloc(workercount, sizeof(*fitnesses));
+	double *color = scalloc(depth, sizeof(*fitnesses));
 	debug_1;
 	seed_image_normal(data, used_, seeds);
 	debug_1;
@@ -313,24 +330,21 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	pthread_barrier_init(supervisorbarrier, NULL, 2);
 	pthread_barrier_t *groupbarrier = smalloc(sizeof(pthread_barrier_t));
 	pthread_barrier_init(groupbarrier, NULL, 1+workercount);
-	pthread_barrier_t *workerbarriers[workercount-1];
-	for (int i = 0; i < workercount-1; ++i) {
-		workerbarriers[i] = smalloc(sizeof(pthread_barrier_t));
-		pthread_barrier_init(workerbarriers[i], NULL, 2);
-	}
 	pthread_barrier_t *progressbarrier = smalloc(sizeof(pthread_barrier_t));
 	pthread_barrier_init(progressbarrier, NULL, 2);
 	struct generatordata generatordata = {
 		datalock,
 		supervisorbarrier,
 		groupbarrier,
-		workerbarriers,
 		data,
 		used_,
 		&edgelist,
 		&pixels,
 		0,	// this changes per thread,
 			// so we need to use supervisorbarrier to wait until the thread has read it
+		bests,
+		fitnesses,
+		color,
 	};
 	volatile bool finished = false;
 	struct progressdata progressdata = {
@@ -358,19 +372,56 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 		}
 		fprintf(testfile, "\n");
 	}*/
-	while (start_wait_time = sleep(start_wait_time)); // wait to start
+	while ((start_wait_time = sleep(start_wait_time)) != 0); // wait to start
 	
 	while (pixels < dimx*dimy) {
 		debug(0, "%d\n", pixels);
 		pthread_barrier_wait(groupbarrier); // sync with workers
 		// workers manage themselves for a while, reading then writing
 		pthread_barrier_wait(groupbarrier); // sync with workers
+		pthread_rwlock_wrlock(datalock);
 		debug(0, "%d\n", pixels);
 		// output progress image
 		pthread_barrier_wait(progressbarrier);
 
 		pthread_barrier_wait(progressbarrier); // make sure progress rdlocked
 		debug(0, "%d\n", pixels);
+		//TODO: add new pixel here
+		
+		int best = -1;
+		double fitness = DBL_MAX;
+		for (int i = 0; i < workercount; ++i) {
+			if (fitnesses[i] < fitness) {
+				fitness = fitnesses[i];
+				best = i;
+			}
+		}
+		
+		// add pixel to best place
+		if (best != -1) {
+			int x = edgelist.edges[best].x, y = edgelist.edges[best].y, tx, ty;
+			shuffleoffsets();
+			if (!used[y][x]) { // Check if another thread added a pixel here
+				memcpy(values[y][x], color, depth*sizeof(*color));
+				used[y][x] = true;
+				++pixels;
+				for (int i = 0; i < offsetcount; ++i) {
+					tx = x + offsets[i].dx, ty = y + offsets[i].dy;
+					if (ty >= 0 && ty < dimy && \
+						tx >= 0 && tx < dimx && \
+						!used[ty][tx]
+					   ) {
+						add_edge_outer_normal_nocheck(dimx, dimy, tx, ty, (struct edgelist *const) &edgelist, (bool*) used);
+					}
+				}
+			}
+		}
+		else {
+			debug(-20, "NO BEST (%d edges)\n", edgelist.edgecount);
+		}
+		pthread_rwlock_unlock(datalock);
+		
+		pthread_barrier_wait(groupbarrier); // sync with workers
 		// remove any non-edge edges
 		/*for (int y = 0; y < dimy; ++y) {
 			for (int x = 0; x < dimx; ++x) {
@@ -431,72 +482,38 @@ static void *generate_outer_worker_normal(void *gdata_) {
 	pthread_barrier_wait(supervisorbarrier); // All values other than id are not changed
 	pthread_rwlock_t *const datalock = gdata->datalock;
 	pthread_barrier_t *const groupbarrier = gdata->groupbarrier;
-	pthread_barrier_t *const *const wbarriers = gdata->wbarriers;
 	struct pnmdata *const data = gdata->data;
 	volatile struct edgelist *const edgelist = gdata->edgelist;
 	const int dimx = data->dimx, dimy = data->dimy;
 	double (*const values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) gdata->used_;
 	volatile int *const pixels = gdata->pixels;
-	bool isfirst = id == 0;
-	bool islast = id == workercount-1;
-	double *color = scalloc(depth, sizeof(*color));
+	volatile int *mybest = gdata->bests + id;
+	volatile double *myfitness = gdata->fitnesses + id;
+	const double *color = gdata->color;
 	int size = dimx*dimy;
 	while (*pixels < size) { // datalock doesn't need to be locked here for pixels?
 		debug(0, "worker %d: %d edges\n", id, edgelist->edgecount);
 		pthread_barrier_wait(groupbarrier); // sync all workers with main thread
 		debug(0, "worker %d: %d edges\n", id, edgelist->edgecount);
 		pthread_rwlock_rdlock(datalock); // read lock until best is found
-		if (!isfirst)
-			pthread_barrier_wait(wbarriers[id-1]); // wait for previous thread to generate its color
-		new_color(color);
-		if (!islast)
-			pthread_barrier_wait(wbarriers[id]); // let the next thread go
-		double bestfitness = maxfitness; // lower if better
-		struct pixel *best = NULL;
-		int range = edgelist->edgecount/workercount;
-		int start = dividework ? range * id : 0;
-		int end = dividework ? (islast ? edgelist->edgecount : range*(id+1)) : edgelist->edgecount;
-		for (int i = start; i < end; ++i) {
+		*myfitness = maxfitness; // lower if better
+		*mybest = -1;
+		int start = id;
+		int end = edgelist->edgecount;
+		for (int i = start; i < end; i += workercount) {
 			double fitness = outer_fitness_normal(dimx, dimy, (double*) values, (bool*) used, edgelist->edges[i], color);
-			if (fitness < bestfitness) {
-				bestfitness = fitness;
-				best = &edgelist->edges[i];
+			if (fitness < *myfitness) {
+				*myfitness = fitness;
+				*mybest = i;
 			}
 		}
 		pthread_rwlock_unlock(datalock);
-		if (!isfirst)
-			pthread_barrier_wait(wbarriers[id-1]);
-		pthread_rwlock_wrlock(datalock);
-		// add pixel to best place
-		if (best != NULL) {
-			int x = best->x, y = best->y, tx, ty;
-			shuffleoffsets();
-			if (!used[y][x]) { // Check if another thread added a pixel here
-				memcpy(values[y][x], color, depth*sizeof(*color));
-				used[y][x] = true;
-				(*pixels)++;
-				for (int i = 0; i < offsetcount; ++i) {
-					tx = x + offsets[i].dx, ty = y + offsets[i].dy;
-					if (ty >= 0 && ty < dimy && \
-						tx >= 0 && tx < dimx && \
-						!used[ty][tx]
-					   ) {
-						add_edge_outer_normal_nocheck(dimx, dimy, tx, ty, (struct edgelist *const) edgelist, (bool*) used);
-					}
-				}
-			}
-		}
-		else {
-			debug(-20, "NO BEST (%d edges)\n", edgelist->edgecount);
-		}
-		pthread_rwlock_unlock(datalock);
-		if (!islast)
-			pthread_barrier_wait(wbarriers[id]);
 		pthread_barrier_wait(groupbarrier);
 		// so we don't access pixels when a thread has a wrlock
 		// also so that either all threads see *pixels < size, or none do
 		// so generate doesn't have to call cancel
+		pthread_barrier_wait(groupbarrier);
 	}
 	return NULL;
 }
@@ -531,7 +548,7 @@ static bool add_edge_outer_normal_nocheck(int dimx, int dimy, int x, int y, stru
 	return true;
 }
 
-double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color) {
+double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double ret = DBL_MAX;
 	for (int i = 0; i < offsetcount; ++i) {
@@ -544,7 +561,7 @@ double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used
 	return ret;
 }
 
-double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color) {
+double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double ret = 0;
 	int found = 0;
@@ -558,7 +575,7 @@ double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *u
 	return found ? ret / found : DBL_MAX;
 }
 
-double outer_fitness_normal_worst(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, double *color) {
+double outer_fitness_normal_worst(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double ret = 0;
 	for (int i = 0; i < offsetcount; ++i) {

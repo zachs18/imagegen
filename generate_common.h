@@ -55,13 +55,15 @@ struct generatordata {
 	pthread_rwlock_t *datalock;
 	pthread_barrier_t *supervisorbarrier; // supervisor barrier, main thread and one worker
 	pthread_barrier_t *groupbarrier; // group barrier, main thread and all workers
-	pthread_barrier_t *const *wbarriers; // worker barriers, two workers each
 	struct pnmdata *data;
 	bool *used_;
 	//bool *blocked_; // the workers don't need this, only the manager
 	struct edgelist *edgelist;
 	volatile int *pixels;
 	int id; // [0, workercount)
+	volatile int *bests; // list of indexes in edgelist; only the worker with id i can read/write index i
+	volatile double *fitnesses; // list of fitnesses at bests[i] in edgelist; only the worker with id i can read/write index i
+	const double *color; // all workers cooperate for one color
 };
 
 extern struct offset *offsets;
@@ -107,6 +109,6 @@ extern void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_);
 
 extern void (*shuffleoffsets)(void);
 
-extern double inner_fitness(int dimx, int dimy, double *values_, struct pixel pixel, double *color);
+extern double inner_fitness(int dimx, int dimy, const double *values_, struct pixel pixel, const double *color);
 
 #endif // GENERATE_h
