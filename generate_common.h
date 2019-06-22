@@ -6,13 +6,13 @@
 #include "pnmlib.h"
 #include "debug.h"
 
-#define GENERATE_SHORTOPTS "e:O:w:"
+#define GENERATE_SHORTOPTS "e:O:w:C:"
 
 #define GENERATE_LONGOPTS \
 	{"seeds", required_argument, NULL, 'e'}, \
 	{"offsets", required_argument, NULL, 'O'}, \
 	{"workers", required_argument, NULL, 'w'}, \
-	{"divide", no_argument, NULL, 'divw'}, \
+	{"colorcount", required_argument, NULL, 'C'}, \
 	{"noshuffle", no_argument, NULL, 'nshf'}, \
 	{"maxfitness", required_argument, NULL, 'maxf'}, \
 	{"startwait", required_argument, NULL, 'wsta'}, \
@@ -26,8 +26,8 @@
 	"		-O n -O normal                  The 8 pixels adjacent\n" \
 	"		-O k -O knight                  The 8 pixels one knight's-move away\n" \
 	"		-O \"1,2\"                      First number is the horizontal offset, followed by the vertical offset\n" \
-	"	-w <int>                            Number of worker threads.\n" \
-	"	--divide                            Divide the edges among the workers, insted of all workers checking all edges.\n" \
+	"	-w <int>                            Number of worker threads (doesn't change image, but higher generally means faster).\n" \
+	"	--colorcount <int>                  Place <int> colors at a time (DOES change image).\n" \
 	"	--maxfitness <int>                  Maximum fitness value.\n" \
 	"	--symmetry <int>[nh][nv],<int>[nh][nv]  Symmetry specifier (n is no) (one n is no for both) \n" \
 	"	                                    (first int: number of horizontal sections;\n" \
@@ -61,9 +61,9 @@ struct generatordata {
 	struct edgelist *edgelist;
 	volatile int *pixels;
 	int id; // [0, workercount)
-	volatile int *bests; // list of indexes in edgelist; only the worker with id i can read/write index i
-	volatile double *fitnesses; // list of fitnesses at bests[i] in edgelist; only the worker with id i can read/write index i
-	const double *color; // all workers cooperate for one color
+	volatile int *bests_; // list of indexes in edgelist; only the worker with id i can read/write index i
+	volatile double *fitnesses_; // list of fitnesses at bests[i] in edgelist; only the worker with id i can read/write index i
+	const double *colors_; // all workers cooperate for all colors
 };
 
 extern struct offset *offsets;
@@ -73,9 +73,9 @@ extern int offsetcount;
 extern int floodoffsetcount;
 
 extern int seeds;
+extern int colorcount;
 
 extern int workercount;
-extern bool dividework;
 
 extern bool inner;
 extern bool symmetric;

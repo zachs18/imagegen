@@ -203,6 +203,8 @@ bool progress_option(int c, char *optarg) {
 }
 
 void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int seed, int depth) {
+	if (colorcount < 0) // would be in generate_finalize but we need it initialized here
+		colorcount = 1;
 	if (progress == NULL || progressfile_defaultname) { // No progress was requested, use default file output
 		debug(-3, "%p %d\n", progress, progressfile_defaultname);
 		char *progname = strdup(progname_);
@@ -225,10 +227,10 @@ void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int s
 		}
 	}
 	//debug(-1, "%d %d\n", workercount, progress_interval);
-	//progress_interval /= workercount;
+	progress_interval /= colorcount;
 	//debug(-1, "%d %d\n", workercount, progress_interval);
 	if (progress_interval < 1) {
-		progress_interval = 256;
+		progress_interval = 256 / colorcount;
 	}
 }
 

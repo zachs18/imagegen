@@ -28,9 +28,9 @@ int offsetcount = 0;
 int floodoffsetcount = 0;
 
 int seeds = -1;
+int colorcount = -1;
 
 int workercount = 2;
-bool dividework = false;
 
 bool inner = true;
 bool symmetric = false;
@@ -149,8 +149,12 @@ bool generate_option(int c, char *optarg) {
 				exit(EXIT_FAILURE);
 			}
 			break;
-		case 'divw': // divide work
-			dividework = true;
+		case 'C': // color count
+			ret = sscanf(optarg, "%d%n", &colorcount, &count);
+			if (ret != 1 || colorcount < 1 || optarg[count] != 0) {
+				fprintf(stderr, "Invalid color count: '%s'.\n", optarg);
+				exit(EXIT_FAILURE);
+			}
 			break;
 		case 'symm': // symmetry
 			ret = sscanf(optarg, "%d%n", &sym_hcount, &count);
@@ -242,6 +246,8 @@ void generate_finalize(struct pnmdata *data, bool *blocked_) {
 		normaloffsets();
 	if (shuffleoffsets == NULL)
 		shuffleoffsets = doshuffleoffsets;
+	//if (colorcount < 0)
+	//	colorcount = 1; // in progress_finalize
 	for (int i = 0; i < offsetcount; ++i) {
 		bool exists = false;
 		for (int j = 0; j < floodoffsetcount; ++j) {
