@@ -232,6 +232,7 @@ void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int s
 	if (progress_interval < 1) {
 		progress_interval = 256 / colorcount;
 	}
+	if (progress_interval < 1) progress_interval = 1;
 }
 
 void *no_progress(void *pdata_) { // also an example
@@ -478,7 +479,7 @@ void *progress_text(void *pdata_) {
 		debug_0;
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
 		if (step_count % progress_interval == 0) {
-			fprintf(textfile, "\x1b[AApproximately %4.1lf%% done (%d, %d, %d).\x1b[0K\n", 100 * (double)step_count  / (double)size, progress_interval, step_count, *edgecount);
+			fprintf(textfile, "\x1b[AApproximately %4.1lf%% done (%d, %d, %d).\x1b[0K\n", 100 * (double)step_count * colorcount / (double)size, progress_interval, step_count, *edgecount);
 			fflush(textfile);
 			++output_count;;
 		}
