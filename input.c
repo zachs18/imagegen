@@ -230,11 +230,15 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) list->rawdata;
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
+					bool is_black = true;
 					for (int d = 0; d < currentdepth; ++d) {
 						if (currentvalues[y][x][d] != 0.) { 
 							// if any value is not 0, then the value isn't black, and is allowed
+							is_black = false;
 							break;
 						}
+					}
+					if (!is_black) {
 						used[y][x] = false;
 						blocked[y][x] = false;
 					}
