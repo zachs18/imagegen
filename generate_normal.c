@@ -232,9 +232,9 @@ static void *generate_inner_worker_normal(void *gdata_) {
 			myfitnesses[c] = maxfitness; // lower if better
 			mybests[c] = -1;
 		}
-		int start = id;
-		int end = edgelist->edgecount;
-		for (int i = start; i < end; i += workercount) {
+		int start = (edgelist->edgecount) / workercount * id;
+		int end = (id < workercount-1) ? (edgelist->edgecount) / workercount * (id+1) : (edgelist->edgecount);
+		for (int i = start; i < end; ++i) {
 			for (int c = 0; c < colorcount; ++c) {
 				double fitness = inner_fitness(dimx, dimy, (double*) values, edgelist->edges[i], colors[c]);
 				if (fitness < myfitnesses[c]) {
@@ -508,9 +508,11 @@ static void *generate_outer_worker_normal(void *gdata_) {
 		for (int c = 0; c < colorcount; ++c) {
 			myfitnesses[c] = maxfitness; // lower is better
 			mybests[c] = -1;
-			int start = id;
-			int end = edgelist->edgecount;
-			for (int i = start; i < end; i += workercount) {
+		}
+		int start = (edgelist->edgecount) / workercount * id;
+		int end = (id < workercount-1) ? (edgelist->edgecount) / workercount * (id+1) : (edgelist->edgecount);
+		for (int i = start; i < end; ++i) {
+			for (int c = 0; c < colorcount; ++c) {
 				double fitness = outer_fitness_normal(dimx, dimy, (double*) values, (bool*) used, edgelist->edges[i], colors[c]);
 				if (fitness < myfitnesses[c]) {
 					myfitnesses[c] = fitness;
