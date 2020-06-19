@@ -16,7 +16,7 @@ main: compile ;
 
 Debug: main ;
 
-Release: CFLAGS += -DNO_DEBUG
+Release: CFLAGS += -DNO_DEBUG -O2
 Release: main ;
 
 clean:
