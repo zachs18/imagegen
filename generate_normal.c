@@ -7,6 +7,7 @@
 #include <float.h> // DBL_MAX
 #include <string.h> // memcpy
 #include <unistd.h> // sleep
+#include <stdalign.h>
 
 #include "generate_common.h"
 #include "seed_normal.h"
@@ -33,13 +34,13 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
+	__m256d (*values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy, sizeof(struct pixel));
 	volatile int pixels = 0;
 	volatile int (*bests)[colorcount] = scalloc(workercount, sizeof(*bests));
 	volatile double (*fitnesses)[colorcount] = scalloc(workercount, sizeof(*fitnesses));
-	double (*colors)[depth] = scalloc(colorcount, sizeof(*colors));
+	__m256d *colors = s_mm_malloc(colorcount * sizeof(*colors), alignof(*colors));
 	debug_1;
 	seed_image_normal(data, used_, seeds);
 	debug_1;
@@ -80,7 +81,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 			// so we need to use supervisorbarrier to wait until the thread has read it
 		(int*)bests,
 		(double*)fitnesses,
-		(double*)colors,
+		(__m256d*)colors,
 	};
 	volatile bool finished = false;
 	struct progressdata progressdata = {
@@ -114,7 +115,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	while (pixels < dimx*dimy) {
 		debug(0, "%d\n", pixels);
 		for (int i = 0; i < colorcount; ++i) {
-			new_color(colors[i]);
+			colors[i] = new_color();
 		}
 		pthread_barrier_wait(groupbarrier); // sync with workers
 		// workers manage themselves for a while, reading
@@ -140,7 +141,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 						x+dx >= 0 && x+dx < dimx && \
 						!used[y+dy][x+dx]
 					   ) {
-						memcpy(values[y+dy][x+dx], colors[c], sizeof(colors[c]));
+						values[y+dy][x+dx] = colors[c];
 						used[y+dy][x+dx] = true;
 						++pixels;
 						if (valid_edge_inner_normal(dimx, dimy, x+dx, y+dy, (bool*) used))
@@ -215,12 +216,12 @@ static void *generate_inner_worker_normal(void *gdata_) {
 	struct pnmdata *const data = gdata->data;
 	const volatile struct edgelist *const edgelist = gdata->edgelist;
 	const int dimx = data->dimx, dimy = data->dimy;
-	double (*const values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
+	__m256d (*const values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) gdata->used_;
 	volatile int *const pixels = gdata->pixels;
 	volatile int *mybests = ((volatile int(*)[colorcount]) gdata->bests_)[id];
 	volatile double *myfitnesses = ((volatile double(*)[colorcount]) gdata->fitnesses_)[id];
-	const double (*colors)[depth] = (const double (*)[depth]) gdata->colors_;
+	const __m256d *colors = (const __m256d*) gdata->colors_;
 	
 	int size = dimx*dimy;
 	while (*pixels < size) { // datalock doesn't need to be locked here for pixels?
@@ -232,11 +233,11 @@ static void *generate_inner_worker_normal(void *gdata_) {
 			myfitnesses[c] = maxfitness; // lower if better
 			mybests[c] = -1;
 		}
-		int start = id;
-		int end = edgelist->edgecount;
-		for (int i = start; i < end; i += workercount) {
+		int start = (edgelist->edgecount) / workercount * id;
+		int end = (id < workercount-1) ? (edgelist->edgecount) / workercount * (id+1) : (edgelist->edgecount);
+		for (int i = start; i < end; ++i) {
 			for (int c = 0; c < colorcount; ++c) {
-				double fitness = inner_fitness(dimx, dimy, (double*) values, edgelist->edges[i], colors[c]);
+				double fitness = inner_fitness(dimx, dimy, (__m256d*) values, edgelist->edges[i], colors[c]);
 				if (fitness < myfitnesses[c]) {
 					myfitnesses[c] = fitness;
 					mybests[c] = i;
@@ -282,24 +283,24 @@ static bool add_edge_inner_normal(int dimx, int dimy, int x, int y, struct edgel
 	return true;
 }
 
-static double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color);
-static double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color);
-static double outer_fitness_normal_worst(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color);
+static double outer_fitness_normal_best(int dimx, int dimy, __m256d *values_, bool *used_, struct pixel pixel, const __m256d color);
+static double outer_fitness_normal_average(int dimx, int dimy, __m256d *values_, bool *used_, struct pixel pixel, const __m256d color);
+static double outer_fitness_normal_worst(int dimx, int dimy, __m256d *values_, bool *used_, struct pixel pixel, const __m256d color);
 
-static double (*outer_fitness_normal)(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) = outer_fitness_normal_average;
+static double (*outer_fitness_normal)(int dimx, int dimy, __m256d *values_, bool *used_, struct pixel pixel, const __m256d color) = outer_fitness_normal_average;
 
 
 void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
+	__m256d (*values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy*offsetcount, sizeof(struct pixel)); // *offsetcount TODO
 	volatile int pixels = 0;
 	volatile int (*bests)[colorcount] = scalloc(workercount, sizeof(*bests));
 	volatile double (*fitnesses)[colorcount] = scalloc(workercount, sizeof(*fitnesses));
-	double (*colors)[depth] = scalloc(colorcount, sizeof(*colors));
+	__m256d *colors = s_mm_malloc(colorcount * sizeof(*colors), alignof(*colors));
 	debug_1;
 	seed_image_normal(data, used_, seeds);
 	debug_1;
@@ -346,7 +347,7 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 			// so we need to use supervisorbarrier to wait until the thread has read it
 		(int*)bests,
 		(double*)fitnesses,
-		(double*)colors,
+		(__m256d*)colors,
 	};
 	volatile bool finished = false;
 	struct progressdata progressdata = {
@@ -380,7 +381,7 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 	while (pixels < dimx*dimy) {
 		debug(0, "%d\n", pixels);
 		for (int i = 0; i < colorcount; ++i) {
-			new_color(colors[i]);
+			colors[i] = new_color();
 		}
 		pthread_barrier_wait(groupbarrier); // sync with workers
 		// workers manage themselves for a while, reading then writing
@@ -402,7 +403,7 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
 				int x = edgelist.edges[bests[best][c]].x, y = edgelist.edges[bests[best][c]].y, tx, ty;
 				shuffleoffsets();
 				if (!used[y][x]) { // Check if another thread added a pixel here
-					memcpy(values[y][x], colors[c], sizeof(colors[c]));
+					values[y][x] = colors[c];
 					used[y][x] = true;
 					++pixels;
 					for (int i = 0; i < offsetcount; ++i) {
@@ -493,12 +494,12 @@ static void *generate_outer_worker_normal(void *gdata_) {
 	struct pnmdata *const data = gdata->data;
 	volatile struct edgelist *const edgelist = gdata->edgelist;
 	const int dimx = data->dimx, dimy = data->dimy;
-	double (*const values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
+	__m256d (*const values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) gdata->used_;
 	volatile int *const pixels = gdata->pixels;
 	volatile int *mybests = ((volatile int(*)[colorcount]) gdata->bests_)[id];
 	volatile double *myfitnesses = ((volatile double(*)[colorcount]) gdata->fitnesses_)[id];
-	const double (*colors)[depth] = (const double (*)[depth]) gdata->colors_;
+	const __m256d *colors = (const __m256d*) gdata->colors_;
 	int size = dimx*dimy;
 	while (*pixels < size) { // datalock doesn't need to be locked here for pixels?
 		debug(0, "worker %d: %d edges\n", id, edgelist->edgecount);
@@ -508,10 +509,12 @@ static void *generate_outer_worker_normal(void *gdata_) {
 		for (int c = 0; c < colorcount; ++c) {
 			myfitnesses[c] = maxfitness; // lower is better
 			mybests[c] = -1;
-			int start = id;
-			int end = edgelist->edgecount;
-			for (int i = start; i < end; i += workercount) {
-				double fitness = outer_fitness_normal(dimx, dimy, (double*) values, (bool*) used, edgelist->edges[i], colors[c]);
+		}
+		int start = (edgelist->edgecount) / workercount * id;
+		int end = (id < workercount-1) ? (edgelist->edgecount) / workercount * (id+1) : (edgelist->edgecount);
+		for (int i = start; i < end; ++i) {
+			for (int c = 0; c < colorcount; ++c) {
+				double fitness = outer_fitness_normal(dimx, dimy, (__m256d*) values, (bool*) used, edgelist->edges[i], colors[c]);
 				if (fitness < myfitnesses[c]) {
 					myfitnesses[c] = fitness;
 					mybests[c] = i;
@@ -558,7 +561,7 @@ static bool add_edge_outer_normal_nocheck(int dimx, int dimy, int x, int y, stru
 	return true;
 }
 
-double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) {
+double outer_fitness_normal_best(int dimx, int dimy, __m256d *values_, bool *used_, struct pixel pixel, const __m256d color) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double ret = DBL_MAX;
 	for (int i = 0; i < offsetcount; ++i) {
@@ -571,7 +574,7 @@ double outer_fitness_normal_best(int dimx, int dimy, double *values_, bool *used
 	return ret;
 }
 
-double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) {
+double outer_fitness_normal_average(int dimx, int dimy, __m256d *values_, bool *used_, struct pixel pixel, const __m256d color) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double ret = 0;
 	int found = 0;
@@ -585,7 +588,7 @@ double outer_fitness_normal_average(int dimx, int dimy, double *values_, bool *u
 	return found ? ret / found : DBL_MAX;
 }
 
-double outer_fitness_normal_worst(int dimx, int dimy, double *values_, bool *used_, struct pixel pixel, const double *color) {
+double outer_fitness_normal_worst(int dimx, int dimy, __m256d *values_, bool *used_, struct pixel pixel, const __m256d color) {
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	double ret = 0;
 	for (int i = 0; i < offsetcount; ++i) {

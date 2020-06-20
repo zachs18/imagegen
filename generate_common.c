@@ -425,14 +425,10 @@ static void doshuffleoffsets(void) {
 
 static void dontshuffleoffsets(void) {}
 
-double inner_fitness(int dimx, int dimy, const double *values_, struct pixel pixel, const double *color) {
-	const double (*values)[dimx][depth] = (const double(*)[dimx][depth]) values_;
-	double ret = 0.;
-	for (int i = 0; i < depth; ++i) {
-		double t = (values[pixel.y][pixel.x][i] - color[i])*65536;
-		ret += t*t;
-	}
-	if (ret < 0.)
-		return DBL_MAX;
+double inner_fitness(int dimx, int dimy, const __m256d *values_, struct pixel pixel, const __m256d color) {
+	const __m256d (*values)[dimx] = (const __m256d(*)[dimx]) values_;
+	__m256d diff = (values[pixel.y][pixel.x] - color)*65536;
+	__m256d sq_diff = diff * diff;
+	double ret = sq_diff[3] + sq_diff[2] + sq_diff[1] + sq_diff[0];
 	return ret;
 }

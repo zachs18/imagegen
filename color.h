@@ -2,6 +2,7 @@
 #define COLOR_H
 
 #include <stdbool.h>
+#include <x86intrin.h>
 
 #include "setup.h" // extern int depth;
 #include "debug.h"
@@ -32,7 +33,7 @@
 bool color_option(int c, char *optarg);
 void color_initialize(void);
 
-extern void (*new_color)(double *c);
+extern __m256d (*new_color)(void);
 
 #endif // COLOR_H
 

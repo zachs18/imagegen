@@ -136,7 +136,7 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 	int dimx = data->dimx;
 	int dimy = data->dimy;
 	int depth = data->depth;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
+	__m256d (*values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
 	if (background != NULL) {
@@ -156,7 +156,7 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 		//int endx = startx + background->dimx;
 		int starty = (dimy - background->dimy) / 2;
 		//int endy = starty + background->dimy;
-		double (*bkgdvalues)[background->dimx][depth] = (double(*)[background->dimx][depth]) background->rawdata;
+		__m256d (*bkgdvalues)[background->dimx] = (__m256d(*)[background->dimx]) background->rawdata;
 	//fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
 		for (int y = 0; y < background->dimy; ++y) {
 			memcpy(&values[starty+y][startx], bkgdvalues[y], sizeof(*bkgdvalues));
@@ -180,7 +180,7 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 		//int endx = startx + input->dimx;
 		int starty = (dimy - input->dimy) / 2;
 		//int endy = starty + input->dimy;
-		double (*invalues)[input->dimx][depth] = (double(*)[input->dimx][depth]) input->rawdata;
+		__m256d (*invalues)[input->dimx] = (__m256d(*)[input->dimx]) input->rawdata;
 	//fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
 		for (int y = 0; y < input->dimy; ++y) {
 			memcpy(&values[starty+y][startx], invalues[y], sizeof(*invalues));
@@ -201,7 +201,7 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 				exit(EXIT_FAILURE);
 			}
 			int currentdepth = list->depth;
-			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) list->rawdata;
+			__m256d (*currentvalues)[dimx] = (__m256d(*)[dimx]) list->rawdata;
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < currentdepth; ++d) {
@@ -227,7 +227,7 @@ void input_finalize(struct pnmdata *data, bool *used_, bool *blocked_) {
 				exit(EXIT_FAILURE);
 			}
 			int currentdepth = list->depth;
-			double (*currentvalues)[dimx][currentdepth] = (double(*)[dimx][depth]) list->rawdata;
+			__m256d (*currentvalues)[dimx] = (__m256d(*)[dimx]) list->rawdata;
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					bool is_black = true;

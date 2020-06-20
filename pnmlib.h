@@ -1,6 +1,7 @@
 #ifndef PNMLIB_H
 #define PNMLIB_H
 
+#include <x86intrin.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -11,7 +12,7 @@ struct pnmdata {
 	int maxval; /** Highest sample value */
 	int depth; /** Samples per pixel */
 	int commentcount; /** Number of comments */
-	double *rawdata; /** actually a  double(*)[dimx][depth] */
+	__m256d *rawdata; /** 4 packed doubles per color */
 	char **comments; /** NULL or pointer to commentcount-length array of C-strings */
 	struct pnmdata *next; /** pnm format supports multiple images per file */
 };

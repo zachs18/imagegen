@@ -7,6 +7,7 @@
 #define _GNU_SOURCE // for non-modifying basename
 #include <libgen.h>
 #include <string.h>
+#include <stdalign.h>
 
 #ifdef SDL_PROGRESS
 #include <SDL2/SDL.h>
@@ -60,7 +61,7 @@ struct graphicshelperdata {
 	int dimx;
 	int dimy;
 	int depth;
-	const double *rawdata_;
+	const __m256d *rawdata_;
 };
 
 static int end_wait_time = 0;
@@ -353,11 +354,11 @@ void *progress_file_masked(void *pdata_) {
 	pthread_rwlock_t *datalock = pdata->datalock;
 	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
 	const struct pnmdata *const data = pdata->data;
-	const double (*rawdata)[dimx][depth] = (double (*)[dimx][depth]) data->rawdata;
-	const double (*maskdata)[dimx][mask->depth] = (double (*)[dimx][mask->depth]) mask->rawdata;
+	const __m256d (*rawdata)[dimx] = (__m256d (*)[dimx]) data->rawdata;
+	const __m256d (*maskdata)[dimx] = (__m256d (*)[dimx]) mask->rawdata;
 	int masked_depth = depth >= mask->depth ? depth : mask->depth;
-	double (*masked_data)[dimx][masked_depth] = calloc(dimy, sizeof(*masked_data));
-	struct pnmdata masked = {dimx, dimy, data->maxval >= mask->maxval ? data->maxval : mask->maxval, masked_depth, data->commentcount, (double*) masked_data, data->comments, NULL};
+	__m256d (*masked_data)[dimx] = s_mm_malloc(dimy * sizeof(*masked_data), alignof(*masked_data));
+	struct pnmdata masked = {dimx, dimy, data->maxval >= mask->maxval ? data->maxval : mask->maxval, masked_depth, data->commentcount, (__m256d*) masked_data, data->comments, NULL};
 	const volatile bool *finished = pdata->finished;
 	int step_count = 0;
 	debug_0;
@@ -367,43 +368,10 @@ void *progress_file_masked(void *pdata_) {
 		pthread_rwlock_rdlock(datalock);
 		pthread_barrier_wait(progressbarrier); // ensure rdlock
 		if (step_count % progress_interval == 0) {
-			if (depth == 3 && mask->depth == 3) {
-				for (int y = 0; y < dimy; ++y) {
-					for (int x = 0; x < dimx; ++x) {
-						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-						masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][1];
-						masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][2];
-					}
+			for (int y = 0; y < dimy; ++y) {
+				for (int x = 0; x < dimx; ++x) {
+					masked_data[y][x] = rawdata[y][x] * maskdata[y][x];
 				}
-			}
-			else if (depth == 1 && mask->depth == 3) {
-				for (int y = 0; y < dimy; ++y) {
-					for (int x = 0; x < dimx; ++x) {
-						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-						masked_data[y][x][1] = rawdata[y][x][0] * maskdata[y][x][1];
-						masked_data[y][x][2] = rawdata[y][x][0] * maskdata[y][x][2];
-					}
-				}
-			}
-			else if (depth == 3 && mask->depth == 1) {
-				for (int y = 0; y < dimy; ++y) {
-					for (int x = 0; x < dimx; ++x) {
-						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-						masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][0];
-						masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][0];
-					}
-				}
-			}
-			else if (depth == 1 && mask->depth == 1) {
-				for (int y = 0; y < dimy; ++y) {
-					for (int x = 0; x < dimx; ++x) {
-						masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-					}
-				}
-			}
-			else {
-				fprintf(stderr, "Logic error: unsupported depth\n");
-				exit(EXIT_FAILURE);
 			}
 			pthread_rwlock_unlock(datalock);
 			fwritepnm(&masked, progressfile);
@@ -416,43 +384,10 @@ void *progress_file_masked(void *pdata_) {
 	debug_0;
 	pthread_rwlock_rdlock(datalock);
 	debug_0;
-	if (depth == 3 && mask->depth == 3) {
-		for (int y = 0; y < dimy; ++y) {
-			for (int x = 0; x < dimx; ++x) {
-				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-				masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][1];
-				masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][2];
-			}
+	for (int y = 0; y < dimy; ++y) {
+		for (int x = 0; x < dimx; ++x) {
+			masked_data[y][x] = rawdata[y][x] * maskdata[y][x];
 		}
-	}
-	else if (depth == 1 && mask->depth == 3) {
-		for (int y = 0; y < dimy; ++y) {
-			for (int x = 0; x < dimx; ++x) {
-				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-				masked_data[y][x][1] = rawdata[y][x][0] * maskdata[y][x][1];
-				masked_data[y][x][2] = rawdata[y][x][0] * maskdata[y][x][2];
-			}
-		}
-	}
-	else if (depth == 3 && mask->depth == 1) {
-		for (int y = 0; y < dimy; ++y) {
-			for (int x = 0; x < dimx; ++x) {
-				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-				masked_data[y][x][1] = rawdata[y][x][1] * maskdata[y][x][0];
-				masked_data[y][x][2] = rawdata[y][x][2] * maskdata[y][x][0];
-			}
-		}
-	}
-	else if (depth == 1 && mask->depth == 1) {
-		for (int y = 0; y < dimy; ++y) {
-			for (int x = 0; x < dimx; ++x) {
-				masked_data[y][x][0] = rawdata[y][x][0] * maskdata[y][x][0];
-			}
-		}
-	}
-	else {
-		fprintf(stderr, "Logic error: unsupported depth\n");
-		exit(EXIT_FAILURE);
 	}
 	for (int i = 0; i < extras; ++i) {
 		fwritepnm(&masked, progressfile);
@@ -503,7 +438,7 @@ void *progress_sdl2(void *pdata_) {
 	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
 	const struct pnmdata *const data = pdata->data;
 	int dimx = data->dimx, dimy = data->dimy, depth = data->depth;
-	double (*rawdata)[dimx][depth] = scalloc(dimy, sizeof(*rawdata)); // use memcpy each time
+	__m256d (*rawdata)[dimx] = s_mm_malloc(dimy * sizeof(*rawdata), alignof(*rawdata)); // use memcpy each time
 	const volatile bool *finished = pdata->finished;
 	int step_count = 0;
 	
@@ -521,7 +456,7 @@ void *progress_sdl2(void *pdata_) {
 		dimx,
 		dimy,
 		depth,
-		(double*)rawdata
+		(__m256d*)rawdata
 	};
 	
 	pthread_t helper;
@@ -575,7 +510,7 @@ void *progress_sdl2_helper(void *gdata_) {
 	int dimx = gdata->dimx;
 	int dimy = gdata->dimy;
 	int depth = gdata->depth;
-	double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
+	__m256d (*rawdata)[dimx] = (__m256d(*)[dimx]) gdata->rawdata_;
 	
 	
 	SDL_Window *window = NULL;
@@ -615,10 +550,9 @@ void *progress_sdl2_helper(void *gdata_) {
 				}
 			}
 			else if (depth == 1 && mask == NULL) {
-				double tmp;
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
-						tmp = rawdata[y][x][0]*255;
+						double tmp = rawdata[y][x][0]*255;
 						pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 					}
 				}
@@ -628,9 +562,9 @@ void *progress_sdl2_helper(void *gdata_) {
 					for (int x = 0; x < dimx; ++x) {
 						pixelarr[y][x] = SDL_MapRGB(
 							pixelformat,
-							rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-							rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-							rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+							rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+							rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 						);
 					}
 				}
@@ -640,9 +574,9 @@ void *progress_sdl2_helper(void *gdata_) {
 					for (int x = 0; x < dimx; ++x) {
 						pixelarr[y][x] = SDL_MapRGB(
 							pixelformat,
-							rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-							rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-							rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+							rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]
 						);
 					}
 				}
@@ -654,9 +588,9 @@ void *progress_sdl2_helper(void *gdata_) {
 						tmp = rawdata[y][x][0]*255;
 						pixelarr[y][x] = SDL_MapRGB(
 							pixelformat,
-							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+							tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+							tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 						);
 					}
 				}
@@ -665,7 +599,7 @@ void *progress_sdl2_helper(void *gdata_) {
 				double tmp;
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
-						tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						tmp = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 						pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 					}
 				}
@@ -721,9 +655,9 @@ void *progress_sdl2_helper(void *gdata_) {
 			for (int x = 0; x < dimx; ++x) {
 				pixelarr[y][x] = SDL_MapRGB(
 					pixelformat,
-					rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-					rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-					rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+					rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+					rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 				);
 			}
 		}
@@ -733,9 +667,9 @@ void *progress_sdl2_helper(void *gdata_) {
 			for (int x = 0; x < dimx; ++x) {
 				pixelarr[y][x] = SDL_MapRGB(
 					pixelformat,
-					rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-					rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-					rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+					rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]
 				);
 			}
 		}
@@ -747,9 +681,9 @@ void *progress_sdl2_helper(void *gdata_) {
 				tmp = rawdata[y][x][0]*255;
 				pixelarr[y][x] = SDL_MapRGB(
 					pixelformat,
-					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+					tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+					tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 				);
 			}
 		}
@@ -758,7 +692,7 @@ void *progress_sdl2_helper(void *gdata_) {
 		double tmp;
 		for (int y = 0; y < dimy; ++y) {
 			for (int x = 0; x < dimx; ++x) {
-				tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+				tmp = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 				pixelarr[y][x] = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 			}
 		}
@@ -833,7 +767,7 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 	int dimx = gdata->dimx;
 	int dimy = gdata->dimy;
 	int depth = gdata->depth;
-	double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
+	__m256d (*rawdata)[dimx] = (__m256d(*)[dimx]) gdata->rawdata_;
 	
 	
 	SDL_Window *window = NULL;
@@ -893,9 +827,9 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 					for (int x = 0; x < dimx; ++x) {
 						Uint32 temp = SDL_MapRGB(
 							pixelformat,
-							rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-							rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-							rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+							rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+							rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 						);
 						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -910,9 +844,9 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 					for (int x = 0; x < dimx; ++x) {
 						Uint32 temp = SDL_MapRGB(
 							pixelformat,
-							rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-							rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-							rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+							rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]
 						);
 						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -929,9 +863,9 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 						tmp = rawdata[y][x][0]*255;
 						Uint32 temp = SDL_MapRGB(
 							pixelformat,
-							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-							tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+							tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+							tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+							tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 						);
 						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -945,7 +879,7 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 				double tmp;
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
-						tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						tmp = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 						Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 						for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 							for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -1016,9 +950,9 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 			for (int x = 0; x < dimx; ++x) {
 				Uint32 temp = SDL_MapRGB(
 					pixelformat,
-					rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-					rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-					rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+					rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+					rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 				);
 				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -1033,9 +967,9 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 			for (int x = 0; x < dimx; ++x) {
 				Uint32 temp = SDL_MapRGB(
 					pixelformat,
-					rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-					rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-					rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+					rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]
 				);
 				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -1052,9 +986,9 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 				tmp = rawdata[y][x][0]*255;
 				Uint32 temp = SDL_MapRGB(
 					pixelformat,
-					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-					tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+					tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][0],
+					tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][1],
+					tmp*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]
 				);
 				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -1068,7 +1002,7 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
 		double tmp;
 		for (int y = 0; y < dimy; ++y) {
 			for (int x = 0; x < dimx; ++x) {
-				tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+				tmp = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 				Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
 				for (int yy = 0; yy < sdl_scale[1]; ++yy) {
 					for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -1151,7 +1085,7 @@ void *progress_framebuffer(void *pdata_) {
 	pthread_barrier_t *progressbarrier = pdata->progressbarrier;
 	const struct pnmdata *const data = pdata->data;
 	int dimx = data->dimx, dimy = data->dimy, depth = data->depth;
-	double (*rawdata)[dimx][depth] = scalloc(dimy, sizeof(*rawdata)); // use memcpy each time
+	__m256d (*rawdata)[dimx] = s_mm_malloc(dimy * sizeof(*rawdata), alignof(*rawdata)); // use memcpy each time
 	const volatile bool *finished = pdata->finished;
 	int step_count = 0;
 	
@@ -1169,7 +1103,7 @@ void *progress_framebuffer(void *pdata_) {
 		dimx,
 		dimy,
 		depth,
-		(double*)rawdata
+		(__m256d*)rawdata
 	};
 	
 	pthread_t helper;
@@ -1218,7 +1152,7 @@ void *progress_framebuffer_helper(void *gdata_) {
 	int dimx = gdata->dimx;
 	int dimy = gdata->dimy;
 	int depth = gdata->depth;
-	double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
+	__m256d (*rawdata)[dimx] = (__m256d(*)[dimx]) gdata->rawdata_;
 	
 	int fbfd = 0;
 	struct fb_var_screeninfo vinfo;
@@ -1298,9 +1232,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+						pixels[y][x][0] = rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
 					}
 				}
 			}
@@ -1308,9 +1242,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-						pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+						pixels[y][x][0] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
 					}
 				}
 			}
@@ -1318,9 +1252,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
-						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						pixels[y][x][0] = rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
+						pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 					}
 				}
 			}
@@ -1328,7 +1262,7 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 					}
 				}
 			}
@@ -1367,9 +1301,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+						pixels[y][x][0] = rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
 					}
 				}
 			}
@@ -1377,9 +1311,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-						pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+						pixels[y][x][0] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1]; // BGR pixel order
+						pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
 					}
 				}
 			}
@@ -1387,9 +1321,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
-						pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-						pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						pixels[y][x][0] = rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
+						pixels[y][x][1] = rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
+						pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 					}
 				}
 			}
@@ -1397,7 +1331,7 @@ void *progress_framebuffer_helper(void *gdata_) {
 				for (int y = 0; y < dimy; ++y) {
 					for (int x = 0; x < dimx; ++x) {
 						//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+						pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 					}
 				}
 			}
@@ -1434,9 +1368,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 					for (int y = 0; y < dimy; ++y) {
 						for (int x = 0; x < dimx; ++x) {
 							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-							pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-							pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-							pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+							pixels[y][x][0] = rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]; // BGR pixel order
+							pixels[y][x][1] = rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1]; // BGR pixel order
+							pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
 						}
 					}
 				}
@@ -1444,9 +1378,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 					for (int y = 0; y < dimy; ++y) {
 						for (int x = 0; x < dimx; ++x) {
 							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-							pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-							pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-							pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+							pixels[y][x][0] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][2]; // BGR pixel order
+							pixels[y][x][1] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][1]; // BGR pixel order
+							pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
 						}
 					}
 				}
@@ -1454,9 +1388,9 @@ void *progress_framebuffer_helper(void *gdata_) {
 					for (int y = 0; y < dimy; ++y) {
 						for (int x = 0; x < dimx; ++x) {
 							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-							pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
-							pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-							pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+							pixels[y][x][0] = rawdata[y][x][2]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0]; // BGR pixel order
+							pixels[y][x][1] = rawdata[y][x][1]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
+							pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 						}
 					}
 				}
@@ -1464,7 +1398,7 @@ void *progress_framebuffer_helper(void *gdata_) {
 					for (int y = 0; y < dimy; ++y) {
 						for (int x = 0; x < dimx; ++x) {
 							//pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-							pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+							pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((__m256d(*)[dimx])(mask->rawdata))[y][x][0];
 						}
 					}
 				}
