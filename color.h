@@ -33,7 +33,7 @@
 bool color_option(int c, char *optarg);
 void color_initialize(void);
 
-extern __m256d (*new_color)(void);
+extern __m128 (*new_color)(void);
 
 #endif // COLOR_H
 

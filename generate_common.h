@@ -63,7 +63,7 @@ struct generatordata {
 	int id; // [0, workercount)
 	volatile int *bests_; // list of indexes in edgelist; only the worker with id i can read/write index i
 	volatile double *fitnesses_; // list of fitnesses at bests[i] in edgelist; only the worker with id i can read/write index i
-	const __m256d *colors_; // all workers cooperate for all colors
+	const __m128 *colors_; // all workers cooperate for all colors
 };
 
 extern struct offset *offsets;
@@ -109,6 +109,6 @@ extern void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_);
 
 extern void (*shuffleoffsets)(void);
 
-extern double inner_fitness(int dimx, int dimy, const __m256d *values_, struct pixel pixel, const __m256d color);
+extern double inner_fitness(int dimx, int dimy, const __m128 *values_, struct pixel pixel, const __m128 color);
 
 #endif // GENERATE_h

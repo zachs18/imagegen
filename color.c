@@ -19,8 +19,8 @@ enum vectorsettype_t {
 };
 
 struct vectorset {
-	__m256d start;
-	__m256d *colors;
+	__m128 start;
+	__m128 *colors;
 	int count;
 	int chance;
 	enum vectorsettype_t type;
@@ -30,19 +30,19 @@ struct vectorset *vectorsets = NULL;
 int vectorsetcount = 0;
 int totalchance = 0;
 
-__m256d (*new_color)(void) = NULL;
+__m128 (*new_color)(void) = NULL;
 
-static __m256d new_color_basic(void);
-static __m256d new_color_vector(void);
+static __m128 new_color_basic(void);
+static __m128 new_color_vector(void);
 
 static void newvectorset(void);
 static void vectorset_base(char *optarg_);
 static void newvector(char *optarg);
 
-static __m256d new_color_vector_helper(struct vectorset *vectorset);
-static __m256d new_color_vector_full(struct vectorset *vectorset);
-static __m256d new_color_vector_triangular(struct vectorset *vectorset);
-static __m256d new_color_vector_sum_one(struct vectorset *vectorset);
+static __m128 new_color_vector_helper(struct vectorset *vectorset);
+static __m128 new_color_vector_full(struct vectorset *vectorset);
+static __m128 new_color_vector_triangular(struct vectorset *vectorset);
+static __m128 new_color_vector_sum_one(struct vectorset *vectorset);
 
 bool color_option(int c, char *optarg) {
 	switch (c) {
@@ -135,10 +135,10 @@ void color_initialize(void) {
 	}
 }
 
-static __m256d new_color_basic() {
-	__m256d c = _mm256_set1_pd(0.);
+static __m128 new_color_basic() {
+	__m128 c = _mm_set1_ps(0.);
 	for (int i = 0; i < depth; ++i) {
-		c[i] = random() / (double) RAND_MAX;
+		c[i] = random() / (float) RAND_MAX;
 	}
 	return c;
 }
@@ -149,7 +149,7 @@ static void newvectorset(void) {
 	vectorsets = temp;
 
 	vectorsets[vectorsetcount-1].colors = NULL;
-	vectorsets[vectorsetcount-1].start = _mm256_set1_pd(0.);
+	vectorsets[vectorsetcount-1].start = _mm_set1_ps(0.);
 	vectorsets[vectorsetcount-1].count = 0;
 	vectorsets[vectorsetcount-1].chance = 1;
 	vectorsets[vectorsetcount-1].type = NONE;
@@ -160,14 +160,14 @@ static void vectorset_base(char *optarg_) {
 	struct vectorset *vectorset = &vectorsets[vectorsetcount-1];
 	if (depth > 0) { // we are using the depth already set // start color space is already allocated
 		int ret, index;
-		ret = sscanf(optarg, "%lf%n", &(vectorset->start[0]), &index);
+		ret = sscanf(optarg, "%f%n", &(vectorset->start[0]), &index);
 		if (ret != 1) {
 			fprintf(stderr, "Invalid color: '%s'\n", optarg_);
 			exit(EXIT_FAILURE);
 		}
 		optarg += index;
 		for (int i = 1; i < depth; ++i) {
-			ret = sscanf(optarg, ",%lf%n", &(vectorset->start[i]), &index);
+			ret = sscanf(optarg, ",%f%n", &(vectorset->start[i]), &index);
 			if (ret != 1) {
 				fprintf(stderr, "Invalid color for depth %d: '%s'\n", depth, optarg_);
 				exit(EXIT_FAILURE);
@@ -181,9 +181,9 @@ static void vectorset_base(char *optarg_) {
 	}
 	else { // we are setting the depth here, we need to initialize vectorset->start
 		depth = 1;
-		vectorset->start = _mm256_set1_pd(0.);
+		vectorset->start = _mm_set1_ps(0.);
 		int ret, index;
-		ret = sscanf(optarg, "%lf%n", &(vectorset->start[0]), &index);
+		ret = sscanf(optarg, "%f%n", &(vectorset->start[0]), &index);
 		if (ret != 1) {
 			fprintf(stderr, "Invalid color: '%s'\n", optarg_);
 			exit(EXIT_FAILURE);
@@ -206,20 +206,20 @@ static void vectorset_base(char *optarg_) {
 static void newvector(char *optarg_) {
 	char *optarg = optarg_;
 	struct vectorset *vectorset = &vectorsets[vectorsetcount-1];
-	__m256d *temp = s_mm_malloc(++(vectorset->count) * sizeof(*(vectorset->colors)), alignof(*(vectorset->colors)));
+	__m128 *temp = s_mm_malloc(++(vectorset->count) * sizeof(*(vectorset->colors)), alignof(*(vectorset->colors)));
 	memcpy(temp, vectorset->colors, (vectorset->count-1) * sizeof(*(vectorset->colors)));
 	vectorset->colors = temp;
 	if (depth > 0) { // we are using the depth already set
-		vectorset->colors[vectorset->count-1] = _mm256_set1_pd(0.);
+		vectorset->colors[vectorset->count-1] = _mm_set1_ps(0.);
 		int ret, index;
-		ret = sscanf(optarg, "%lf%n", &(vectorset->colors[vectorset->count-1][0]), &index);
+		ret = sscanf(optarg, "%f%n", &(vectorset->colors[vectorset->count-1][0]), &index);
 		if (ret != 1) {
 			fprintf(stderr, "Invalid color: '%s'\n", optarg_);
 			exit(EXIT_FAILURE);
 		}
 		optarg += index;
 		for (int i = 1; i < depth; ++i) {
-			ret = sscanf(optarg, ",%lf%n", &(vectorset->colors[vectorset->count-1][i]), &index);
+			ret = sscanf(optarg, ",%f%n", &(vectorset->colors[vectorset->count-1][i]), &index);
 			if (ret != 1) {
 				fprintf(stderr, "Invalid color for depth %d: '%s'\n", depth, optarg_);
 				exit(EXIT_FAILURE);
@@ -233,9 +233,9 @@ static void newvector(char *optarg_) {
 	}
 	else { // we are setting the depth here, we also need to initialize vectorset->start
 		depth = 1;
-		vectorset->colors[0] = _mm256_set1_pd(0.);
+		vectorset->colors[0] = _mm_set1_ps(0.);
 		int ret, index;
-		ret = sscanf(optarg, "%lf%n", &(vectorset->colors[0][0]), &index);
+		ret = sscanf(optarg, "%f%n", &(vectorset->colors[0][0]), &index);
 		if (ret != 1) {
 			fprintf(stderr, "Invalid color: '%s'\n", optarg_);
 			exit(EXIT_FAILURE);
@@ -252,11 +252,11 @@ static void newvector(char *optarg_) {
 			++depth;
 			vectorset->colors[0][depth-1] = temp;
 		}
-		vectorset->start = _mm256_set1_pd(0.);
+		vectorset->start = _mm_set1_ps(0.);
 	}
 }
 
-static __m256d new_color_vector(void) {
+static __m128 new_color_vector(void) {
 	if (vectorsetcount == 1) {
 		return new_color_vector_helper(&vectorsets[0]);
 	}
@@ -269,11 +269,11 @@ static __m256d new_color_vector(void) {
 			}
 			return new_color_vector_helper(&vectorsets[i]);
 		}
-		return _mm256_set1_pd(0.);
+		return _mm_set1_ps(0.);
 	}
 }
 
-static __m256d new_color_vector_helper(struct vectorset *vectorset) {
+static __m128 new_color_vector_helper(struct vectorset *vectorset) {
 	switch (vectorset->type) {
 		case FULL:
 			return new_color_vector_full(vectorset);
@@ -291,20 +291,20 @@ static __m256d new_color_vector_helper(struct vectorset *vectorset) {
 	}
 }
 
-static __m256d new_color_vector_full(struct vectorset *vectorset) {
-	__m256d color = vectorset->start;
+static __m128 new_color_vector_full(struct vectorset *vectorset) {
+	__m128 color = vectorset->start;
 	for (int i = 0; i < vectorset->count; ++i) {
-		double r = random() / (double) RAND_MAX;
-		__m256d temp = r * vectorset->colors[i];
+		float r = random() / (float) RAND_MAX;
+		__m128 temp = r * vectorset->colors[i];
 		color += temp;
 	}
 	return color;
 }
 
-static __m256d new_color_vector_triangular(struct vectorset *vectorset) {
+static __m128 new_color_vector_triangular(struct vectorset *vectorset) {
 	exit(EXIT_FAILURE);
 }
 
-static __m256d new_color_vector_sum_one(struct vectorset *vectorset) {
+static __m128 new_color_vector_sum_one(struct vectorset *vectorset) {
 	exit(EXIT_FAILURE);
 }

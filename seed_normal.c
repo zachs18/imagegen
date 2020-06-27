@@ -39,7 +39,7 @@ int seed_image_normal(struct pnmdata *data, bool *used_, int seedcount) {
 static int seed_floodplane_normal(struct floodplane *floodplane, struct pnmdata *data, bool *used_, int seedcount) {
 	int dimx = data->dimx; //, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
-	__m256d (*values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
+	__m128 (*values)[dimx] = (__m128(*)[dimx]) data->rawdata;
 	if (seedcount < 0); // pass
 	else if (seedcount < floodplane->count) {
 		for (int i = 0; i < seedcount; ++i) {

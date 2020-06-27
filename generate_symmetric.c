@@ -34,13 +34,13 @@ void generate_inner_symmetric(struct pnmdata *data, bool *used_, bool *blocked_)
 	int dimx = data->dimx, dimy = data->dimy;
 	bool (*used)[dimx] = (bool(*)[dimx]) used_;
 	bool (*blocked)[dimx] = (bool(*)[dimx]) blocked_;
-	__m256d (*values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
+	__m128 (*values)[dimx] = (__m128(*)[dimx]) data->rawdata;
 	struct edgelist edgelist = {NULL, 0};
 	edgelist.edges = scalloc(dimx*dimy, sizeof(struct pixel));
 	volatile int pixels = 0;
 	volatile int (*bests)[colorcount] = scalloc(workercount, sizeof(*bests));
 	volatile double (*fitnesses)[colorcount] = scalloc(workercount, sizeof(*fitnesses));
-	__m256d *colors = s_mm_malloc(colorcount * sizeof(*colors), alignof(*colors));
+	__m128 *colors = s_mm_malloc(colorcount * sizeof(*colors), alignof(*colors));
 	debug_1;
 	seed_image_symmetric(data, used_, seeds);
 	debug_1;
@@ -81,7 +81,7 @@ void generate_inner_symmetric(struct pnmdata *data, bool *used_, bool *blocked_)
 			// so we need to use supervisorbarrier to wait until the thread has read it
 		(int*)bests,
 		(double*)fitnesses,
-		(__m256d*)colors,
+		(__m128*)colors,
 	};
 	volatile bool finished = false;
 	struct progressdata progressdata = {
@@ -216,12 +216,12 @@ static void *generate_inner_worker_symmetric(void *gdata_) {
 	struct pnmdata *const data = gdata->data;
 	const volatile struct edgelist *const edgelist = gdata->edgelist;
 	const int dimx = data->dimx, dimy = data->dimy;
-	__m256d (*const values)[dimx] = (__m256d(*)[dimx]) data->rawdata;
+	__m128 (*const values)[dimx] = (__m128(*)[dimx]) data->rawdata;
 	bool (*used)[dimx] = (bool(*)[dimx]) gdata->used_;
 	volatile int *const pixels = gdata->pixels;
 	volatile int *mybests = ((volatile int(*)[colorcount]) gdata->bests_)[id];
 	volatile double *myfitnesses = ((volatile double(*)[colorcount]) gdata->fitnesses_)[id];
-	const __m256d *colors = (const __m256d *) gdata->colors_;
+	const __m128 *colors = (const __m128 *) gdata->colors_;
 	
 	int size = dimx*dimy;
 	while (*pixels < size) { // datalock doesn't need to be locked here for pixels?
@@ -237,7 +237,7 @@ static void *generate_inner_worker_symmetric(void *gdata_) {
 		int end = edgelist->edgecount;
 		for (int i = start; i < end; i += workercount) {
 			for (int c = 0; c < colorcount; ++c) {
-				double fitness = inner_fitness(dimx, dimy, (__m256d*) values, edgelist->edges[i], colors[c]);
+				double fitness = inner_fitness(dimx, dimy, (__m128*) values, edgelist->edges[i], colors[c]);
 				if (fitness < myfitnesses[c]) {
 					myfitnesses[c] = fitness;
 					mybests[c] = i;

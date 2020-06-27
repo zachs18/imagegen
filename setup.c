@@ -96,8 +96,8 @@ void setup_finalize(struct pnmdata *data, bool **used, bool **blocked, const cha
 	data->dimy = dimy;
 	data->maxval = maxval;
 	data->depth = depth;
-	__m256d (*values)[dimx] = (__m256d(*)[dimx]) s_mm_malloc(dimy * sizeof(*values), alignof(*values));
-	data->rawdata = (__m256d*) values;
+	__m128 (*values)[dimx] = (__m128(*)[dimx]) s_mm_malloc(dimy * sizeof(*values), alignof(*values));
+	data->rawdata = (__m128*) values;
 	bool (*u)[dimx] = scalloc(dimy, sizeof(*u)); // initializes to false
 	*used = (bool*) u;
 	bool (*b)[dimx] = scalloc(dimy, sizeof(*b)); // initializes to false

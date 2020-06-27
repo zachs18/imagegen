@@ -12,7 +12,7 @@ struct pnmdata {
 	int maxval; /** Highest sample value */
 	int depth; /** Samples per pixel */
 	int commentcount; /** Number of comments */
-	__m256d *rawdata; /** 4 packed doubles per color */
+	__m128 *rawdata; /** 4 packed doubles per color */
 	char **comments; /** NULL or pointer to commentcount-length array of C-strings */
 	struct pnmdata *next; /** pnm format supports multiple images per file */
 };
