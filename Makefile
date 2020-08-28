@@ -14,7 +14,11 @@ compile:     main.o setup.o input.o generate_common.o generate_normal.o generate
 
 main: compile ;
 
+Debug: CFLAGS += -g
 Debug: main ;
+
+DebugO2: CFLAGS += -g -O2
+DebugO2: main ;
 
 Release: CFLAGS += -DNO_DEBUG -O2
 Release: main ;
