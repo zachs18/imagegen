@@ -2,6 +2,7 @@
 #define GENERATE_COMMON_H
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "pnmlib.h"
 #include "debug.h"

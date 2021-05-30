@@ -9,5 +9,6 @@ latex/
 html/
 nqq_session.xml
 imagegen*
+build*
 
 !whitelist*

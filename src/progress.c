@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
-#define _GNU_SOURCE // for non-modifying basename
 #include <libgen.h>
 #include <string.h>
 
