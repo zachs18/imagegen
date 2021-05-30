@@ -2,7 +2,6 @@
 #define GENERATE_COMMON_H
 
 #include <stdbool.h>
-#include <pthread.h>
 
 #include "pnmlib.h"
 #include "debug.h"
@@ -64,7 +63,7 @@ struct generatordata {
 	int id; // [0, workercount)
 	volatile int *bests_; // list of indexes in edgelist; only the worker with id i can read/write index i
 	volatile double *fitnesses_; // list of fitnesses at bests[i] in edgelist; only the worker with id i can read/write index i
-	const double *colors_; // all workers cooperate for all colors
+	const color_t *colors_; // all workers cooperate for all colors
 };
 
 extern struct offset *offsets;
@@ -110,6 +109,6 @@ extern void (*generate)(struct pnmdata *data, bool *used_, bool *blocked_);
 
 extern void (*shuffleoffsets)(void);
 
-extern double inner_fitness(int dimx, int dimy, const double *values_, struct pixel pixel, const double *color);
+extern double inner_fitness(int dimx, int dimy, const color_t *values_, struct pixel pixel, const color_t color);
 
 #endif // GENERATE_h

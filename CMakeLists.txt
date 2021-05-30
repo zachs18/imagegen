@@ -3,7 +3,7 @@ project(imagegen)
 
 #message("Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
 
-set(CMAKE_C_FLAGS "-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -std=c18 -Wall -Wno-multichar")
+set(CMAKE_C_FLAGS "-fdiagnostics-color=always -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -std=c18 -Wall -Wno-multichar")
 # _GNU_SOURCE for non-modifying basename
 # _POSIX_C_SOURCE >= 200809L for strdup
 set(CMAKE_C_FLAGS_DEBUG "-g")

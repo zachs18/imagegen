@@ -90,13 +90,17 @@ void setup_finalize(struct pnmdata *data, bool **used, bool **blocked, const cha
 		maxval = 255;
 	if (depth < 1)
 		depth = 3;
+	if (depth > 4) {
+        fprintf(stderr, "Invalid depth: %d; Assuming depth = 3\n", depth);
+        depth = 3;
+    }
 	initpnm(data);
 	data->dimx = dimx;
 	data->dimy = dimy;
 	data->maxval = maxval;
 	data->depth = depth;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) scalloc(dimy, sizeof(*values));
-	data->rawdata = (double*) values;
+	color_t (*values)[dimx] = (color_t(*)[dimx]) scalloc(dimy, sizeof(*values));
+	data->rawdata = (color_t*) values;
 	bool (*u)[dimx] = scalloc(dimy, sizeof(*u)); // initializes to false
 	*used = (bool*) u;
 	bool (*b)[dimx] = scalloc(dimy, sizeof(*b)); // initializes to false

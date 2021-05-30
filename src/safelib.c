@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <x86intrin.h>
 
 void *smalloc(size_t size) {
 	void *ptr = malloc(size);
@@ -38,3 +39,11 @@ void *sreallocarray(void *ptr, size_t nmemb, size_t size) {
 	}
 }
 
+void *s_mm_malloc(size_t size, size_t align) {
+    void *ptr = _mm_malloc(size, align);
+    if (size == 0 || ptr != NULL) return ptr; // Success
+    else {
+        fprintf(stderr, "s_mm_malloc(%zd, %zd) failed\n", size, align);
+        exit(EXIT_FAILURE);
+    }
+}

@@ -12,6 +12,8 @@
 
 #include "pnmlib.h"
 
+#include <x86intrin.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -19,6 +21,7 @@
 
 #include "safelib.h"
 #include "debug.h"
+#include "color.h"
 
 /**
  * @brief Allocate and initialize pnmdata struct
@@ -65,7 +68,7 @@ void reinitpnm(struct pnmdata *data) {
 	data->commentcount = 0;
 	data->comments = NULL;
 
-	free(data->rawdata);
+	_mm_free(data->rawdata);
 	data->rawdata = NULL;
 
 }
@@ -83,7 +86,7 @@ void freepnm(struct pnmdata *data) {
 			free(data->comments);
 			data->comments = NULL;
 		}
-		free(data->rawdata);
+		_mm_free(data->rawdata);
 		free(data);
 		data = next;
 	}
@@ -97,7 +100,7 @@ void freepnm(struct pnmdata *data) {
 bool fscannum_comments(struct pnmdata *data, FILE *file, int *dim) {
 	int c;
 	while (true) {
-		fscanf(file, " ");
+		(void)!fscanf(file, " "); // ignore result
 		c = fgetc(file);
 		if (c == EOF) {
 			return false;
@@ -106,8 +109,8 @@ bool fscannum_comments(struct pnmdata *data, FILE *file, int *dim) {
 			data->comments = srealloc(data->comments, sizeof(*(data->comments))*++data->commentcount);
 			data->comments[data->commentcount-1] = NULL;
 			char *currentcomment = NULL;
-			fscanf(file, "%m[^\n]", &currentcomment);
-			if (currentcomment != NULL) {
+			int check = fscanf(file, "%m[^\n]", &currentcomment);
+			if (check != 1 || currentcomment != NULL) {
 				data->comments[data->commentcount-1] = currentcomment;
 			}
 			else {
@@ -175,31 +178,35 @@ bool freadpnm(struct pnmdata *data, FILE *file) {
 		bool ret = fscandim3_comments(data, file);
 		if (!ret) return false;
 		int dimx = data->dimx, dimy = data->dimy, maxval = data->maxval;
-		double (*values)[dimx][depth] = scalloc(dimy, sizeof(*values));
-		data->rawdata = (double*) values;
+		color_t (*values)[dimx] = s_mm_malloc(dimy * sizeof(*values), alignof(*values));
+		data->rawdata = (color_t*) values;
 		int val;
 		if (maxval > 0 && maxval < 256) {
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
+					color_t color = color_set1(0);
 					for (int d = 0; d < depth; ++d) {
 						val = fgetc(file);
-						if (val <= 0) values[y][x][d] = 0.;
-						else if (val >= maxval) values[y][x][d] = 1.;
-						else values[y][x][d] = ((double)val) / maxval;
+						if (val <= 0) /* 0 */;
+						else if (val >= maxval) color_set_channel(color, d, 1);
+						else color_set_channel(color, d, ((double)val) / maxval);
 					}
+					values[y][x] = color;
 				}
 			}
 		}
 		else if (maxval >= 256 && maxval < 65536) {
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
+					color_t color = color_set1(0);
 					for (int d = 0; d < depth; ++d) {
 						val = fgetc(file) * 256;
 						val += fgetc(file); // sequence point between two fgetc calls
-						if (val <= 0) values[y][x][d] = 0.;
-						else if (val >= maxval) values[y][x][d] = 1.;
-						else values[y][x][d] = ((double)maxval) / val;
+						if (val <= 0) /* 0 */;
+						else if (val >= maxval) color_set_channel(color, d, 1);
+						else color_set_channel(color, d, ((double)maxval) / val);
 					}
+					values[y][x] = color;
 				}
 			}
 		}
@@ -211,18 +218,20 @@ bool freadpnm(struct pnmdata *data, FILE *file) {
 		bool ret = fscandim3_comments(data, file);
 		if (!ret) return false;
 		int dimx = data->dimx, dimy = data->dimy, maxval = data->maxval;
-		double (*values)[dimx][depth] = scalloc(dimy, sizeof(*values));
-		data->rawdata = (double*) values;
+		color_t (*values)[dimx] = s_mm_malloc(dimy * sizeof(*values), alignof(*values));
+		data->rawdata = (color_t*) values;
 		int val;
 		if (maxval > 0) {
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
+					color_t color = color_set1(0);
 					for (int d = 0; d < depth; ++d) {
 						ret = fscannum_comments(data, file, &val);
-						if (val <= 0) values[y][x][d] = 0.;
-						else if (val >= maxval) values[y][x][d] = 1.;
-						else values[y][x][d] = ((double)val) / maxval;
+						if (val <= 0) /* 0 */;
+						else if (val >= maxval) color_set_channel(color, d, 1);
+						else color_set_channel(color, d, ((double)val) / maxval);
 					}
+					values[y][x] = color;
 				}
 			}
 		}
@@ -240,14 +249,14 @@ bool freadpnm(struct pnmdata *data, FILE *file) {
 		if (!ret) return false;
 		int dimx = data->dimx, dimy = data->dimy;
 		data->maxval = 1;
-		double (*values)[dimx] = scalloc(dimy, sizeof(*values));
-		data->rawdata = (double*) values;
+		color_t (*values)[dimx] = s_mm_malloc(dimy * sizeof(*values), alignof(*values));
+		data->rawdata = (color_t*) values;
 		int val;
 		for (int y = 0; y < dimy; ++y) {
 			for (int x = 0; x < dimx; ++x) {
 				ret = fscannum_comments(data, file, &val);
-				if (val) values[y][x] = 0.; // 1 is black
-				else values[y][x] = 1.;
+				if (val) values[y][x] = color_set1(0); // 1 is black
+				else values[y][x] = color_set1(1);
 			}
 		}
 		return true;
@@ -268,7 +277,7 @@ int freadpnms(struct pnmdata *data, FILE *file) {
 	if (c != EOF) { // maybe just if c == 'P'
 		ungetc(c, file);
 		data->next = allocpnm();
-		fscanf(file, " ");
+		(void)!fscanf(file, " "); // ignore result
 		return 1 + freadpnms(data->next, file);
 	}
 	return (int) success;
@@ -280,7 +289,7 @@ int freadpnms(struct pnmdata *data, FILE *file) {
  */
 bool fwritepnm(const struct pnmdata *data, FILE *file) {
 	int dimx = data->dimx, dimy = data->dimy, maxval = data->maxval, depth = data->depth;
-	double (*values)[dimx][depth] = (double(*)[dimx][depth]) data->rawdata;
+	color_t (*values)[dimx] = (color_t(*)[dimx]) data->rawdata;
 	if (depth == 3 || depth == 1) { // PPM / PGM
 		fprintf(file, "P%d\n", (depth == 3 ? 6 : 5));
 		for (int i = 0; i < data->commentcount; ++i) {
@@ -293,7 +302,7 @@ bool fwritepnm(const struct pnmdata *data, FILE *file) {
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < depth; ++d) {
-						val = (int) (maxval * values[y][x][d]);
+						val = (int) (maxval * color_get_channel(values[y][x], d));
 						if (val <= 0) fputc(0, file);
 						else if (val >= maxval) fputc(maxval, file);
 						else fputc(val, file);
@@ -305,7 +314,7 @@ bool fwritepnm(const struct pnmdata *data, FILE *file) {
 			for (int y = 0; y < dimy; ++y) {
 				for (int x = 0; x < dimx; ++x) {
 					for (int d = 0; d < depth; ++d) {
-						val = (int) (maxval * values[y][x][d]);
+						val = (int) (maxval * color_get_channel(values[y][x], d));
 						if (val <= 0) {
 							fputc(0, file);
 							fputc(0, file);
