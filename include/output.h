@@ -9,12 +9,12 @@
 #define OUTPUT_SHORTOPTS "o:"
 
 #define OUTPUT_LONGOPTS \
-	{"output", required_argument, NULL, 'o'}, 
+    {"output", required_argument, NULL, 'o'}, 
 
 #define OUTPUT_HELP \
-	"Output Options\n" \
-	"	-o <file> --output <file>   Output final image as a PNM file <file>.\n"\
-	""
+    "Output Options\n" \
+    "    -o <file> --output <file>   Output final image as a PNM file <file>.\n"\
+    ""
 
 bool output_option(int c, char *optarg);
 

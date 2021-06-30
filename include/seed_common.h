@@ -5,8 +5,8 @@
 #include "debug.h"
 
 struct floodplane {
-	struct pixel *pixels;
-	int count;
+    struct pixel *pixels;
+    int count;
 };
 
 extern struct floodplane *floodplanes;

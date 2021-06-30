@@ -12,21 +12,21 @@ bool debugging = true;
 #endif
 
 bool debug_option(int c, char *optarg) {
-	if (c == 'd') {
-		dbglevel++;
-		if (!debugging)
-			fprintf(stderr, "Warning: debugging is disabled.\n");
-		else
-			debug(0, "Debugging level %d.\n", dbglevel);
-		return true;
-	}
-	else if (c == 'D') {
-		dbglevel--;
-		if (!debugging)
-			fprintf(stderr, "Warning: debugging is disabled.\n");
-		else
-			debug(0, "Debugging level %d.\n", dbglevel);
-		return true;
-	}
-	return false;
+    if (c == 'd') {
+        dbglevel++;
+        if (!debugging)
+            fprintf(stderr, "Warning: debugging is disabled.\n");
+        else
+            debug(0, "Debugging level %d.\n", dbglevel);
+        return true;
+    }
+    else if (c == 'D') {
+        dbglevel--;
+        if (!debugging)
+            fprintf(stderr, "Warning: debugging is disabled.\n");
+        else
+            debug(0, "Debugging level %d.\n", dbglevel);
+        return true;
+    }
+    return false;
 }

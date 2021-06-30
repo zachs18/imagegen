@@ -18,14 +18,14 @@
 #define DEBUG_SHORTOPTS "dD"
 
 #define DEBUG_LONGOPTS \
-	{"debug", no_argument, NULL, 'd'}, \
-	{"undebug", no_argument, NULL, 'D'}, \
+    {"debug", no_argument, NULL, 'd'}, \
+    {"undebug", no_argument, NULL, 'D'}, \
 
 #define DEBUG_HELP \
-	"Debug Option\n" \
-	"	-d --debug    Increase debug level by 1 (can be repeated).\n"\
-	"	-D --undebug  Decrease debug level by 1 (can be repeated).\n"\
-	""
+    "Debug Option\n" \
+    "    -d --debug    Increase debug level by 1 (can be repeated).\n"\
+    "    -D --undebug  Decrease debug level by 1 (can be repeated).\n"\
+    ""
 
 extern int dbglevel;
 

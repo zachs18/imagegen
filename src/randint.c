@@ -8,15 +8,15 @@
  * @return A random int from [min,max)
  */
 int randint(int min, int max) {
-	int range = max - min;
-	if (range <= RAND_MAX) {
-		int high = (RAND_MAX / range) * range;
-		int rand;
-		while (true) {
-			rand = random();
-			if (rand > high)
-				continue;
-			return min + rand%range;
-		}
-	}
+    int range = max - min;
+    if (range <= RAND_MAX) {
+        int high = (RAND_MAX / range) * range;
+        int rand;
+        while (true) {
+            rand = random();
+            if (rand > high)
+                continue;
+            return min + rand%range;
+        }
+    }
 }
