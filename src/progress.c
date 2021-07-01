@@ -1,3 +1,4 @@
+
 #include "progress.h"
 
 #include <stdio.h>
@@ -780,7 +781,7 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
     int dimx = gdata->dimx;
     int dimy = gdata->dimy;
     int depth = gdata->depth;
-    double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
+    color_t (*rawdata)[dimx] = (color_t(*)[dimx]) gdata->rawdata_;
     
     
     SDL_Window *window = NULL;
@@ -812,7 +813,13 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
             if (depth == 3 && mask == NULL) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
-                        Uint32 temp =  SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        Uint32 temp = SDL_MapRGB(
+                            pixelformat,
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
+                        );
                         for (int yy = 0; yy < sdl_scale[1]; ++yy) {
                             for (int xx = 0; xx < sdl_scale[0]; ++xx) {
                                 pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
@@ -825,7 +832,7 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
                 double tmp;
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
-                        tmp = rawdata[y][x][0]*255;
+                        tmp = color_get_channel(rawdata[y][x], 0)*255;
                         Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
                         for (int yy = 0; yy < sdl_scale[1]; ++yy) {
                             for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -838,11 +845,14 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
             else if (depth == 3 && mask->depth == 3) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
                         Uint32 temp = SDL_MapRGB(
                             pixelformat,
-                            rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-                            rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-                            rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
                         );
                         for (int yy = 0; yy < sdl_scale[1]; ++yy) {
                             for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -855,11 +865,14 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
             else if (depth == 3 && mask->depth == 1) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = color_set1(color_get_channel(((color_t(*)[dimx])mask->rawdata)[y][x], 0));
+                        color = color_product(color, mask_color);
                         Uint32 temp = SDL_MapRGB(
                             pixelformat,
-                            rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-                            rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-                            rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
                         );
                         for (int yy = 0; yy < sdl_scale[1]; ++yy) {
                             for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -873,12 +886,14 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
                 double tmp;
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
-                        tmp = rawdata[y][x][0]*255;
+                        color_t color = color_set1(color_get_channel(rawdata[y][x], 0)*255.0);
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
                         Uint32 temp = SDL_MapRGB(
                             pixelformat,
-                            tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-                            tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-                            tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
                         );
                         for (int yy = 0; yy < sdl_scale[1]; ++yy) {
                             for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -892,7 +907,7 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
                 double tmp;
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
-                        tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+                        tmp = color_get_channel(rawdata[y][x], 0)*255*color_get_channel(((color_t(*)[dimx])(mask->rawdata))[y][x], 0);
                         Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
                         for (int yy = 0; yy < sdl_scale[1]; ++yy) {
                             for (int xx = 0; xx < sdl_scale[0]; ++xx) {
@@ -933,102 +948,116 @@ void *progress_sdl2_helper_scaled(void *gdata_) {
     pthread_rwlock_rdlock(datalock);
     // Output here // maybe eventually only update changed pixels with help from generate.{c,h}
     if (depth == 3 && mask == NULL) {
-        for (int y = 0; y < dimy; ++y) {
-            for (int x = 0; x < dimx; ++x) {
-                Uint32 temp =  SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                for (int yy = 0; yy < sdl_scale[1]; ++yy) {
-                    for (int xx = 0; xx < sdl_scale[0]; ++xx) {
-                        pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        Uint32 temp = SDL_MapRGB(
+                            pixelformat,
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
+                        );
+                        for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+                            for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+                                pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    else if (depth == 1 && mask == NULL) {
-        double tmp;
-        for (int y = 0; y < dimy; ++y) {
-            for (int x = 0; x < dimx; ++x) {
-                tmp = rawdata[y][x][0]*255;
-                Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
-                for (int yy = 0; yy < sdl_scale[1]; ++yy) {
-                    for (int xx = 0; xx < sdl_scale[0]; ++xx) {
-                        pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+            else if (depth == 1 && mask == NULL) {
+                double tmp;
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        tmp = color_get_channel(rawdata[y][x], 0)*255;
+                        Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+                        for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+                            for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+                                pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    else if (depth == 3 && mask->depth == 3) {
-        for (int y = 0; y < dimy; ++y) {
-            for (int x = 0; x < dimx; ++x) {
-                Uint32 temp = SDL_MapRGB(
-                    pixelformat,
-                    rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-                    rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-                    rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
-                );
-                for (int yy = 0; yy < sdl_scale[1]; ++yy) {
-                    for (int xx = 0; xx < sdl_scale[0]; ++xx) {
-                        pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+            else if (depth == 3 && mask->depth == 3) {
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
+                        Uint32 temp = SDL_MapRGB(
+                            pixelformat,
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
+                        );
+                        for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+                            for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+                                pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    else if (depth == 3 && mask->depth == 1) {
-        for (int y = 0; y < dimy; ++y) {
-            for (int x = 0; x < dimx; ++x) {
-                Uint32 temp = SDL_MapRGB(
-                    pixelformat,
-                    rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-                    rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x],
-                    rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]
-                );
-                for (int yy = 0; yy < sdl_scale[1]; ++yy) {
-                    for (int xx = 0; xx < sdl_scale[0]; ++xx) {
-                        pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+            else if (depth == 3 && mask->depth == 1) {
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = color_set1(color_get_channel(((color_t(*)[dimx])mask->rawdata)[y][x], 0));
+                        color = color_product(color, mask_color);
+                        Uint32 temp = SDL_MapRGB(
+                            pixelformat,
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
+                        );
+                        for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+                            for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+                                pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    else if (depth == 1 && mask->depth == 3) {
-        double tmp;
-        for (int y = 0; y < dimy; ++y) {
-            for (int x = 0; x < dimx; ++x) {
-                tmp = rawdata[y][x][0]*255;
-                Uint32 temp = SDL_MapRGB(
-                    pixelformat,
-                    tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][0],
-                    tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][1],
-                    tmp*((double (*)[dimx][3])(mask->rawdata))[y][x][2]
-                );
-                for (int yy = 0; yy < sdl_scale[1]; ++yy) {
-                    for (int xx = 0; xx < sdl_scale[0]; ++xx) {
-                        pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+            else if (depth == 1 && mask->depth == 3) {
+                double tmp;
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_set1(color_get_channel(rawdata[y][x], 0)*255.0);
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
+                        Uint32 temp = SDL_MapRGB(
+                            pixelformat,
+                            color_get_channel(color, 0),
+                            color_get_channel(color, 1),
+                            color_get_channel(color, 2)
+                        );
+                        for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+                            for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+                                pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    else if (depth == 1 && mask->depth == 1) {
-        double tmp;
-        for (int y = 0; y < dimy; ++y) {
-            for (int x = 0; x < dimx; ++x) {
-                tmp = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-                Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
-                for (int yy = 0; yy < sdl_scale[1]; ++yy) {
-                    for (int xx = 0; xx < sdl_scale[0]; ++xx) {
-                        pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+            else if (depth == 1 && mask->depth == 1) {
+                double tmp;
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        tmp = color_get_channel(rawdata[y][x], 0)*255*color_get_channel(((color_t(*)[dimx])(mask->rawdata))[y][x], 0);
+                        Uint32 temp = SDL_MapRGB(pixelformat, tmp, tmp, tmp);
+                        for (int yy = 0; yy < sdl_scale[1]; ++yy) {
+                            for (int xx = 0; xx < sdl_scale[0]; ++xx) {
+                                pixelarr[y*sdl_scale[1]+yy][x*sdl_scale[0]+xx] = temp;
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    else {
-        debug(-1, "Logic error.\n");
-        exit(EXIT_FAILURE);
-    }
+            else {
+                debug(-1, "Logic error.\n");
+                exit(EXIT_FAILURE);
+            }
     pthread_rwlock_unlock(datalock);
     if (end_wait_time < 0) {
         bool waiting = true;
@@ -1165,7 +1194,7 @@ void *progress_framebuffer_helper(void *gdata_) {
     int dimx = gdata->dimx;
     int dimy = gdata->dimy;
     int depth = gdata->depth;
-    double (*rawdata)[dimx][depth] = (double(*)[dimx][depth]) gdata->rawdata_;
+    color_t (*rawdata)[dimx] = (color_t(*)[dimx]) gdata->rawdata_;
     
     int fbfd = 0;
     struct fb_var_screeninfo vinfo;
@@ -1227,9 +1256,10 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][1]*255; // BGR pixel order
-                        pixels[y][x][2] = rawdata[y][x][0]*255; // BGR pixel order
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
@@ -1237,7 +1267,7 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255;
+                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = color_get_channel(rawdata[y][x], 0)*255;
                     }
                 }
             }
@@ -1245,29 +1275,38 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-                        pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
             else if (depth == 1 && mask->depth == 3) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(color_set1(color_get_channel(rawdata[y][x], 0)), color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-                        pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
             else if (depth == 3 && mask->depth == 1) { 
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = color_set1(color_get_channel(((color_t(*)[dimx])mask->rawdata)[y][x], 0));
+                        color = color_product(color, mask_color);
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-                        pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
@@ -1275,7 +1314,8 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = 
+                            color_get_channel(rawdata[y][x], 0)*255*color_get_channel(((color_t(*)[dimx])(mask->rawdata))[y][x], 0);
                     }
                 }
             }
@@ -1296,9 +1336,10 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][1]*255; // BGR pixel order
-                        pixels[y][x][2] = rawdata[y][x][0]*255; // BGR pixel order
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
@@ -1306,7 +1347,7 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255;
+                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = color_get_channel(rawdata[y][x], 0)*255;
                     }
                 }
             }
@@ -1314,29 +1355,38 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-                        pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
             else if (depth == 1 && mask->depth == 3) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(color_set1(color_get_channel(rawdata[y][x], 0)), color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-                        pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
             else if (depth == 3 && mask->depth == 1) { 
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = color_set1(color_get_channel(((color_t(*)[dimx])mask->rawdata)[y][x], 0));
+                        color = color_product(color, mask_color);
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
-                        pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-                        pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
             }
@@ -1344,7 +1394,8 @@ void *progress_framebuffer_helper(void *gdata_) {
                 for (int y = 0; y < dimy; ++y) {
                     for (int x = 0; x < dimx; ++x) {
                         //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
+                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = 
+                            color_get_channel(rawdata[y][x], 0)*255*color_get_channel(((color_t(*)[dimx])(mask->rawdata))[y][x], 0);
                     }
                 }
             }
@@ -1360,65 +1411,76 @@ void *progress_framebuffer_helper(void *gdata_) {
         for (int i = 0; waiting && i < end_wait_time; ++i) {
             for (int j = 0; waiting && j < 1000/20; ++j) {
                 if (depth == 3 && mask == NULL) {
-                    for (int y = 0; y < dimy; ++y) {
-                        for (int x = 0; x < dimx; ++x) {
-                            //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                            pixels[y][x][0] = rawdata[y][x][2]*255; // BGR pixel order
-                            pixels[y][x][1] = rawdata[y][x][1]*255; // BGR pixel order
-                            pixels[y][x][2] = rawdata[y][x][0]*255; // BGR pixel order
-                        }
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
-                else if (depth == 1 && mask == NULL) {
-                    for (int y = 0; y < dimy; ++y) {
-                        for (int x = 0; x < dimx; ++x) {
-                            //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                            pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255;
-                        }
+            }
+            else if (depth == 1 && mask == NULL) {
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = color_get_channel(rawdata[y][x], 0)*255;
                     }
                 }
-                else if (depth == 3 && mask->depth == 3) {
-                    for (int y = 0; y < dimy; ++y) {
-                        for (int x = 0; x < dimx; ++x) {
-                            //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                            pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-                            pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-                            pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
-                        }
+            }
+            else if (depth == 3 && mask->depth == 3) {
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
-                else if (depth == 1 && mask->depth == 3) {
-                    for (int y = 0; y < dimy; ++y) {
-                        for (int x = 0; x < dimx; ++x) {
-                            //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                            pixels[y][x][0] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][2]; // BGR pixel order
-                            pixels[y][x][1] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][1]; // BGR pixel order
-                            pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx][3])(mask->rawdata))[y][x][0]; // BGR pixel order
-                        }
+            }
+            else if (depth == 1 && mask->depth == 3) {
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(color_set1(color_get_channel(rawdata[y][x], 0)), color_set1(255.0));
+                        color_t mask_color = ((color_t(*)[dimx])mask->rawdata)[y][x];
+                        color = color_product(color, mask_color);
+                        //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
-                else if (depth == 3 && mask->depth == 1) { 
-                    for (int y = 0; y < dimy; ++y) {
-                        for (int x = 0; x < dimx; ++x) {
-                            //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                            pixels[y][x][0] = rawdata[y][x][2]*255*((double (*)[dimx])(mask->rawdata))[y][x]; // BGR pixel order
-                            pixels[y][x][1] = rawdata[y][x][1]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-                            pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-                        }
+            }
+            else if (depth == 3 && mask->depth == 1) { 
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        color_t color = color_product(rawdata[y][x], color_set1(255.0));
+                        color_t mask_color = color_set1(color_get_channel(((color_t(*)[dimx])mask->rawdata)[y][x], 0));
+                        color = color_product(color, mask_color);
+                        //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+                        pixels[y][x][0] = color_get_channel(color, 2); // BGR pixel order
+                        pixels[y][x][1] = color_get_channel(color, 1); // BGR pixel order
+                        pixels[y][x][2] = color_get_channel(color, 0); // BGR pixel order
                     }
                 }
-                else if (depth == 1 && mask->depth == 1) {
-                    for (int y = 0; y < dimy; ++y) {
-                        for (int x = 0; x < dimx; ++x) {
-                            //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
-                            pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = rawdata[y][x][0]*255*((double (*)[dimx])(mask->rawdata))[y][x];
-                        }
+            }
+            else if (depth == 1 && mask->depth == 1) {
+                for (int y = 0; y < dimy; ++y) {
+                    for (int x = 0; x < dimx; ++x) {
+                        //pixelarr[y][x] = SDL_MapRGB(pixelformat, rawdata[y][x][0]*255, rawdata[y][x][1]*255, rawdata[y][x][2]*255);
+                        pixels[y][x][0] = pixels[y][x][1] = pixels[y][x][2] = 
+                            color_get_channel(rawdata[y][x], 0)*255*color_get_channel(((color_t(*)[dimx])(mask->rawdata))[y][x], 0);
                     }
                 }
-                else {
-                    debug(-1, "Logic error.\n");
-                    exit(EXIT_FAILURE);
-                }
+            }
+            else {
+                debug(-1, "Logic error.\n");
+                exit(EXIT_FAILURE);
+            }
                 usleep(20000);
             }
         }

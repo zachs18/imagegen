@@ -124,7 +124,7 @@ void generate_inner_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
         // Add best pixel here
         for (int c = 0; c < colorcount; ++c) {
             int best = -1;
-            double fitness = DBL_MAX;
+            double fitness = maxfitness;
             for (int i = 0; i < workercount; ++i) {
                 if (fitnesses[i][c] < fitness) {
                     fitness = fitnesses[i][c];
@@ -230,7 +230,7 @@ static void *generate_inner_worker_normal(void *gdata_) {
         debug(0, "worker %d\n", id);
         pthread_rwlock_rdlock(datalock); // read lock until best is found
         for (int c = 0; c < colorcount; ++c) {
-            myfitnesses[c] = maxfitness; // lower if better
+            myfitnesses[c] = DBL_MAX; // lower if better
             mybests[c] = -1;
         }
         int start = (edgelist->edgecount) / workercount * id;
@@ -390,7 +390,7 @@ void generate_outer_normal(struct pnmdata *data, bool *used_, bool *blocked_) {
         //TODO: add new pixel here
         for (int c = 0; c < colorcount; ++c) {
             int best = -1;
-            double fitness = DBL_MAX;
+            double fitness = maxfitness;
             for (int i = 0; i < workercount; ++i) {
                 if (fitnesses[i][c] < fitness) {
                     fitness = fitnesses[i][c];
@@ -507,7 +507,7 @@ static void *generate_outer_worker_normal(void *gdata_) {
         debug(0, "worker %d: %d edges\n", id, edgelist->edgecount);
         pthread_rwlock_rdlock(datalock); // read lock until best is found
         for (int c = 0; c < colorcount; ++c) {
-            myfitnesses[c] = maxfitness; // lower is better
+            myfitnesses[c] = DBL_MAX; // lower is better
             mybests[c] = -1;
         }
         int start = (edgelist->edgecount) / workercount * id;

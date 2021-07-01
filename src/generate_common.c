@@ -102,7 +102,7 @@ bool generate_option(int c, char *optarg) {
             break;
         case 'maxf':
             ret = sscanf(optarg, "%lf%n", &maxfitness, &count);
-            if (ret != 1 || maxfitness < 1. || optarg[count] != 0) {
+            if (ret != 1 || maxfitness < 0. || optarg[count] != 0) {
                 fprintf(stderr, "Invalid max fitness: '%s'.\n", optarg);
                 exit(EXIT_FAILURE);
             }
