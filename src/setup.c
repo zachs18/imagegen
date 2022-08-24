@@ -6,6 +6,7 @@
 #include <time.h>
 #include <limits.h> // UINT_MAX
 #include <string.h> // strlen
+#include <stdalign.h>
 
 #include "safelib.h"
 #include "pnmlib.h"
@@ -99,7 +100,7 @@ void setup_finalize(struct pnmdata *data, bool **used, bool **blocked, const cha
     data->dimy = dimy;
     data->maxval = maxval;
     data->depth = depth;
-    color_t (*values)[dimx] = (color_t(*)[dimx]) scalloc(dimy, sizeof(*values));
+    color_t (*values)[dimx] = (color_t(*)[dimx]) s_mm_malloc(dimy * sizeof(*values), alignof(*values));
     data->rawdata = (color_t*) values;
     bool (*u)[dimx] = scalloc(dimy, sizeof(*u)); // initializes to false
     *used = (bool*) u;
@@ -110,11 +111,11 @@ void setup_finalize(struct pnmdata *data, bool **used, bool **blocked, const cha
     
     data->commentcount = 2;
     data->comments = scalloc(2, sizeof(*data->comments));
-    int len = 0, max = UINT_MAX; //  get decimal string length
+    unsigned int len = 0, max = UINT_MAX; //  get decimal string length
     while (max)
         len++, max /= 10; // of UINT_MAX
-    data->comments[0] = scalloc(len + strlen(SEED_STR), sizeof(*data->comments[0]));
-    data->comments[1] = scalloc(len + strlen(WORKERS_STR), sizeof(*data->comments[1]));
+    data->comments[0] = scalloc(len + strlen(SEED_STR) + 1, sizeof(*data->comments[0]));
+    data->comments[1] = scalloc(len + strlen(WORKERS_STR) + 1, sizeof(*data->comments[1]));
     
     sprintf(data->comments[0], "%s%u", SEED_STR, seed); // add seed as PNM comment
     sprintf(data->comments[1], "%s%u", WORKERS_STR, workercount); // add seed as PNM comment

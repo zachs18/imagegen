@@ -213,8 +213,8 @@ void progress_finalize(const char *progname_, int dimx, int dimy, unsigned int s
         debug(-3, "progress == %p\n", progress);
         char *tempstr = smalloc(128);
         char *base = basename(progname);
-        free(progname);
         snprintf(tempstr, 128, "progress_%s_%dx%d_%u.p%cm", base, dimx, dimy, seed, depth == 1 ? 'g' : 'p');
+        free(progname);
         progressfile = fopen(tempstr, "wb");
         if (progressfile == NULL) {
             fprintf(stderr, "Could not open progress file %s\n", tempstr);
@@ -1127,7 +1127,7 @@ void *progress_framebuffer(void *pdata_) {
     pthread_barrier_t *progressbarrier = pdata->progressbarrier;
     const struct pnmdata *const data = pdata->data;
     int dimx = data->dimx, dimy = data->dimy, depth = data->depth;
-    double (*rawdata)[dimx][depth] = scalloc(dimy, sizeof(*rawdata)); // use memcpy each time
+    color_t (*rawdata)[dimx] = s_mm_malloc(dimy * sizeof(*rawdata), alignof(*rawdata)); // use memcpy each time
     const volatile bool *finished = pdata->finished;
     int step_count = 0;
     
@@ -1489,7 +1489,3 @@ void *progress_framebuffer_helper(void *gdata_) {
     return NULL;
 }
 #endif // def FRAMEBUFFER_PROGRESS
-
-
-
-

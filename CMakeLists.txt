@@ -43,7 +43,7 @@ include_directories(include)
 list(APPEND GENERIC "generic" "-m64"     "-DGENERIC")
 list(APPEND FLOAT   "float"   "-m64"     "-DFLOAT")
 list(APPEND SSE     "sse"     "-msse4.2" "-DSSE")
-list(APPEND AVX     "avx"     "-mavx"    "-DVAX")
+list(APPEND AVX     "avx"     "-mavx"    "-DAVX")
 
 list(APPEND CPU_TYPE "GENERIC" "FLOAT" "SSE" "AVX")
 foreach(CPU_TYPE IN LISTS CPU_TYPE)
